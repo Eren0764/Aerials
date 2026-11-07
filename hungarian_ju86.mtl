@@ -1,0 +1,162 @@
+# Material Library for Hungarian Junkers Ju 86K-2
+
+newmtl Mat_CamoUpper
+  Ka 0.1 0.1 0.1
+  Kd 0.2392 0.3059 0.2235
+  Ks 0.1760 0.1760 0.1760
+  Ns 45.0
+  d 1.000
+  illum 2
+
+newmtl Mat_Underside
+  Ka 0.1 0.1 0.1
+  Kd 0.5098 0.6078 0.6902
+  Ks 0.1200 0.1200 0.1200
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_CockpitFrame
+  Ka 0.1 0.1 0.1
+  Kd 0.1686 0.2196 0.1608
+  Ks 0.2400 0.2400 0.2400
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_CockpitGlass
+  Ka 0.1 0.1 0.1
+  Kd 0.7098 0.8392 0.9098
+  Ks 0.7040 0.7040 0.7040
+  Ns 88.0
+  d 0.620
+  illum 2
+
+newmtl Mat_GunMetal
+  Ka 0.1 0.1 0.1
+  Kd 0.0667 0.0745 0.0824
+  Ks 0.7600 0.7600 0.7600
+  Ns 70.0
+  d 1.000
+  illum 2
+
+newmtl Mat_RadialCrankcase
+  Ka 0.1 0.1 0.1
+  Kd 0.2784 0.3333 0.4118
+  Ks 0.5600 0.5600 0.5600
+  Ns 65.0
+  d 1.000
+  illum 2
+
+newmtl Mat_RadialCylinders
+  Ka 0.1 0.1 0.1
+  Kd 0.1451 0.1647 0.1882
+  Ks 0.6400 0.6400 0.6400
+  Ns 40.0
+  d 1.000
+  illum 2
+
+newmtl Mat_StrutChrome
+  Ka 0.1 0.1 0.1
+  Kd 0.8118 0.8471 0.8627
+  Ks 0.7200 0.7200 0.7200
+  Ns 80.0
+  d 1.000
+  illum 2
+
+newmtl Material_8
+  Ka 0.1 0.1 0.1
+  Kd 0.9373 0.2667 0.2667
+  Ks 0.1600 0.1600 0.1600
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_HunRed
+  Ka 0.1 0.1 0.1
+  Kd 0.8078 0.1608 0.2235
+  Ks 0.0000 0.0000 0.0000
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Material_10
+  Ka 0.1 0.1 0.1
+  Kd 0.0627 0.7255 0.5059
+  Ks 0.1600 0.1600 0.1600
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_EngineCowl
+  Ka 0.1 0.1 0.1
+  Kd 0.1804 0.2314 0.1725
+  Ks 0.2800 0.2800 0.2800
+  Ns 55.0
+  d 1.000
+  illum 2
+
+newmtl Mat_CollectorRing
+  Ka 0.1 0.1 0.1
+  Kd 0.5608 0.3843 0.2314
+  Ks 0.6000 0.6000 0.6000
+  Ns 65.0
+  d 1.000
+  illum 2
+
+newmtl Mat_Spinner
+  Ka 0.1 0.1 0.1
+  Kd 0.1216 0.1608 0.2157
+  Ks 0.6400 0.6400 0.6400
+  Ns 70.0
+  d 1.000
+  illum 2
+
+newmtl Mat_PropellerBlade
+  Ka 0.1 0.1 0.1
+  Kd 0.0863 0.0941 0.1059
+  Ks 0.4800 0.4800 0.4800
+  Ns 60.0
+  d 1.000
+  illum 2
+
+newmtl Mat_PropellerTip
+  Ka 0.1 0.1 0.1
+  Kd 0.9608 0.6196 0.0431
+  Ks 0.0000 0.0000 0.0000
+  Ns 65.0
+  d 1.000
+  illum 2
+
+newmtl Mat_HungarianRudder
+  Ka 0.1 0.1 0.1
+  Kd 0.8078 0.1608 0.2235
+  Ks 0.0000 0.0000 0.0000
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_HunWhite
+  Ka 0.1 0.1 0.1
+  Kd 0.9529 0.9569 0.9647
+  Ks 0.0000 0.0000 0.0000
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_HunGreen
+  Ka 0.1 0.1 0.1
+  Kd 0.2078 0.4078 0.2235
+  Ks 0.0000 0.0000 0.0000
+  Ns 50.0
+  d 1.000
+  illum 2
+
+newmtl Mat_TireRubber
+  Ka 0.1 0.1 0.1
+  Kd 0.0941 0.1098 0.1255
+  Ks 0.0400 0.0400 0.0400
+  Ns 10.0
+  d 1.000
+  illum 2
+

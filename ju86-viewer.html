@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hungarian Junkers Ju 86K-2 - 3D Interactive Model Showcase</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0d131a;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      color: #e2f1ff;
+    }
+    #viewer-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    /* UI Overlay */
+    #ui-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+    }
+    .panel {
+      pointer-events: auto;
+      background: rgba(14, 23, 34, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+      border-radius: 10px;
+      padding: 16px 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    /* Header Bar */
+    header.panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .title-group h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hun-flag {
+      display: inline-flex;
+      flex-direction: column;
+      width: 20px;
+      height: 14px;
+      border-radius: 2px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .hun-flag span:nth-child(1) { flex: 1; background: #ce2939; }
+    .hun-flag span:nth-child(2) { flex: 1; background: #ffffff; }
+    .hun-flag span:nth-child(3) { flex: 1; background: #356839; }
+    .title-group p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 3px;
+    }
+    .top-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .action-btn {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .action-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+    .action-btn.secondary {
+      background: #334155;
+      color: #f1f5f9;
+    }
+    .action-btn.secondary:hover {
+      background: #475569;
+    }
+    /* Side Inspector Sidebar */
+    #sidebar {
+      position: absolute;
+      top: 100px;
+      right: 24px;
+      width: 320px;
+      max-height: calc(100% - 140px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .cam-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+    }
+    .cam-btn:hover {
+      background: rgba(51, 65, 85, 0.9);
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+    .cam-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .control-row:last-child {
+      margin-bottom: 0;
+    }
+    .toggle-btn {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 70px;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .toggle-btn.on {
+      background: #15803d;
+      border-color: #22c55e;
+      color: #ffffff;
+      font-weight: 600;
+    }
+    /* Info Callout */
+    .feature-tag {
+      background: rgba(2, 132, 199, 0.15);
+      border-left: 3px solid #38bdf8;
+      padding: 8px 10px;
+      border-radius: 0 4px 4px 0;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+    .feature-tag strong {
+      color: #f8fafc;
+    }
+    /* Bottom Controls Help */
+    #bottom-help.panel {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-around;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .help-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .help-key {
+      background: #334155;
+      color: #f8fafc;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-weight: 700;
+    }
+    .ita-flag {
+      display: inline-flex;
+      flex-direction: row;
+      width: 21px;
+      height: 14px;
+      border-radius: 2px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .ita-flag span:nth-child(1) { flex: 1; background: #009246; }
+    .ita-flag span:nth-child(2) { flex: 1; background: #ffffff; }
+    .ita-flag span:nth-child(3) { flex: 1; background: #ce2b37; }
+
+    .hangar-plane-switch {
+      display: inline-flex;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      gap: 6px;
+    }
+    .plane-tab-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .plane-tab-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .plane-tab-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 2px 10px rgba(2, 132, 199, 0.4);
+    }
+  </style>
+  <script src="three.min.js"></script>
+  <script src="ju86_builder.js"></script>
+  <script src="macchi_c202_data.js"></script>
+  <script src="macchi_builder.js"></script>
+</head>
+<body>
+  <canvas id="viewer-canvas"></canvas>
+
+  <div id="ui-container">
+    <!-- Top Header Bar -->
+    <header class="panel">
+      <div class="title-group">
+        <h1 id="hangar-title">
+          <span id="hangar-flag" class="hun-flag">
+            <span></span><span></span><span></span>
+          </span>
+          <span id="hangar-plane-name">Junkers Ju 86K-2 (Weiss Manfréd K-14)</span>
+        </h1>
+        <p id="hangar-plane-sub">Royal Hungarian Air Force (Magyar Királyi Honvéd Légierő) &bull; Twin Radial Medium Bomber</p>
+      </div>
+
+      <div class="hangar-plane-switch">
+        <button class="plane-tab-btn active" id="tab-ju86" data-plane="ju86">🇭🇺 Ju 86K-2</button>
+        <button class="plane-tab-btn" id="tab-c202" data-plane="c202">🇮🇹 Macchi C.202</button>
+      </div>
+
+      <div class="top-actions">
+        <a href="index.html" class="action-btn">
+          <span>✈️</span> Fly in Flight Sim
+        </a>
+        <button id="btn-export-obj" class="action-btn secondary">
+          <span>💾</span> Download .OBJ
+        </button>
+      </div>
+    </header>
+
+    <!-- Right Sidebar: Camera Viewpoints & Interactive Toggles -->
+    <div id="sidebar" class="panel">
+      <div>
+        <div class="section-title">Camera Focus</div>
+        <div class="btn-grid" id="cam-buttons">
+          <button class="cam-btn active" data-view="overview">3/4 Overview</button>
+          <button class="cam-btn" data-view="detail1">Ventral Turret</button>
+          <button class="cam-btn" data-view="engines">Radial Engines</button>
+          <button class="cam-btn" data-view="nose">Glazed Nose</button>
+          <button class="cam-btn" data-view="tail">Hungarian Tail</button>
+          <button class="cam-btn" data-view="wing">Double Wing</button>
+        </div>
+      </div>
+
+      <div id="section-armament">
+        <div class="section-title" id="armament-title">Turret &amp; Armament</div>
+        <div class="feature-tag" id="armament-desc">
+          <strong>Ventral "Dustbin" Turret (Körbchen):</strong> Retractable belly observation pod with rearward 7.92mm machine gun (as seen deployed in the historical Hungarian photo).
+        </div>
+        <div class="control-row" id="turret-control-row">
+          <span id="turret-label">Ventral Turret</span>
+          <button id="btn-turret" class="toggle-btn on">DEPLOYED</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title" id="systems-title">Powerplants &amp; Systems</div>
+        <div class="control-row">
+          <span id="engines-label">Twin Radial Engines</span>
+          <button id="btn-engines" class="toggle-btn on">RUNNING</button>
+        </div>
+        <div class="control-row" id="gear-control-row">
+          <span>Landing Gear</span>
+          <button id="btn-gear" class="toggle-btn on">EXTENDED</button>
+        </div>
+        <div class="control-row" id="flaps-control-row">
+          <span>Junkers Flaps</span>
+          <button id="btn-flaps" class="toggle-btn">RAISED</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Visuals &amp; Environment</div>
+        <div class="control-row">
+          <span>Wireframe Mode</span>
+          <button id="btn-wireframe" class="toggle-btn">OFF</button>
+        </div>
+        <div class="control-row">
+          <span>Lighting</span>
+          <button id="btn-env" class="toggle-btn">DAYLIGHT</button>
+        </div>
+        <div class="control-row">
+          <span>Auto Rotate</span>
+          <button id="btn-autorotate" class="toggle-btn">OFF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Mouse Controls Helper -->
+    <div id="bottom-help" class="panel">
+      <div class="help-item">
+        <span class="help-key">Left Drag</span> Rotate Orbit (360°)
+      </div>
+      <div class="help-item">
+        <span class="help-key">Scroll Wheel</span> Zoom In / Out
+      </div>
+      <div class="help-item">
+        <span class="help-key">Right Drag</span> Pan View
+      </div>
+      <div class="help-item">
+        <span class="help-key" id="stat-wingspan">Wingspan: 22.5 m</span>
+      </div>
+      <div class="help-item">
+        <span class="help-key" id="stat-length">Length: 17.8 m</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // 1. Scene, Camera, Renderer Setup
+      const canvas = document.getElementById('viewer-canvas');
+      const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0e1722);
+      scene.fog = new THREE.FogExp2(0x0e1722, 0.012);
+
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      // 2. Lighting Rig
+      const ambientLight = new THREE.AmbientLight(0xd4e4f7, 0.55);
+      scene.add(ambientLight);
+
+      const sunLight = new THREE.DirectionalLight(0xfff6e5, 1.2);
+      sunLight.position.set(25, 40, 20);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.bias = -0.0005;
+      scene.add(sunLight);
+
+      const fillLight = new THREE.DirectionalLight(0x7ea9d1, 0.45);
+      fillLight.position.set(-25, -10, -20);
+      scene.add(fillLight);
+
+      const rimLight = new THREE.DirectionalLight(0x93c5fd, 0.35);
+      rimLight.position.set(0, 15, -35);
+      scene.add(rimLight);
+
+      // Grid Floor
+      const grid = new THREE.GridHelper(50, 50, 0x38bdf8, 0x1e293b);
+      grid.position.y = -1.95;
+      scene.add(grid);
+
+      // 3. Build Hungarian Ju 86 & Macchi C.202 Models
+      const ju86Data = Ju86Builder.createHungarianJu86({
+        deployedTurret: true,
+        gearDown: true
+      });
+      scene.add(ju86Data.group);
+
+      let macchiData = null;
+
+      // State
+      const state = {
+        currentPlane: 'ju86',
+        turretDeployed: true,
+        enginesRunning: true,
+        gearDown: true,
+        flapsCombat: false,
+        wireframe: false,
+        autoRotate: false,
+        envMode: 'daylight',
+        propSpeed: 30,
+        // Orbit Controls State
+        orbit: {
+          target: new THREE.Vector3(0, 0, 0),
+          camTarget: new THREE.Vector3(0, 0, 0),
+          radius: 20,
+          camRadius: 20,
+          theta: 0.65,
+          camTheta: 0.65,
+          phi: 1.15,
+          camPhi: 1.15,
+          isDragging: false,
+          isPanning: false,
+          prevX: 0,
+          prevY: 0
+        }
+      };
+
+      // Camera Presets per Plane
+      const cameraPresets = {
+        ju86: {
+          overview: { target: new THREE.Vector3(0, 0.5, 0), radius: 22, theta: 0.65, phi: 1.15 },
+          detail1:  { target: new THREE.Vector3(0, -0.9, -0.9), radius: 5.5, theta: 2.5, phi: 1.7 },
+          engines:  { target: new THREE.Vector3(3.8, 0, 3.2), radius: 7.2, theta: 0.3, phi: 1.3 },
+          nose:     { target: new THREE.Vector3(0, 0.4, 5.5), radius: 6.8, theta: 0.1, phi: 1.4 },
+          tail:     { target: new THREE.Vector3(0, 1.2, -7.8), radius: 10.5, theta: 3.14, phi: 1.2 },
+          wing:     { target: new THREE.Vector3(5.5, 0, 1.0), radius: 12.0, theta: 1.2, phi: 1.0 }
+        },
+        c202: {
+          overview: { target: new THREE.Vector3(0, 0, 0), radius: 12.5, theta: 0.65, phi: 1.15 },
+          detail1:  { target: new THREE.Vector3(0, 0.65, 0.15), radius: 3.2, theta: 0.4, phi: 1.2 },
+          engines:  { target: new THREE.Vector3(0, 0.1, 2.8), radius: 4.8, theta: 0.35, phi: 1.3 },
+          nose:     { target: new THREE.Vector3(0, -0.1, 4.3), radius: 3.5, theta: 0.1, phi: 1.4 },
+          tail:     { target: new THREE.Vector3(0, 0.6, -3.8), radius: 5.5, theta: 3.14, phi: 1.2 },
+          wing:     { target: new THREE.Vector3(3.2, 0, 0.2), radius: 6.8, theta: 1.2, phi: 1.0 }
+        }
+      };
+
+      function setViewPreset(key) {
+        const presets = cameraPresets[state.currentPlane] || cameraPresets.ju86;
+        const p = presets[key] || presets.overview;
+        if (!p) return;
+        state.orbit.camTarget.copy(p.target);
+        state.orbit.camRadius = p.radius;
+        state.orbit.camTheta = p.theta;
+        state.orbit.camPhi = p.phi;
+
+        document.querySelectorAll('.cam-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-view') === key);
+        });
+      }
+
+      function setHangarPlane(planeId) {
+        state.currentPlane = planeId;
+        document.getElementById('tab-ju86').classList.toggle('active', planeId === 'ju86');
+        document.getElementById('tab-c202').classList.toggle('active', planeId === 'c202');
+
+        const camBtns = document.getElementById('cam-buttons').children;
+
+        if (planeId === 'c202') {
+          if (!macchiData) {
+            macchiData = MacchiBuilder.createMacchiC202();
+          }
+          scene.remove(ju86Data.group);
+          scene.add(macchiData.group);
+          grid.position.y = -1.55;
+
+          // Header text & flags
+          const flagEl = document.getElementById('hangar-flag');
+          flagEl.className = 'ita-flag';
+          flagEl.innerHTML = '<span></span><span></span><span></span>';
+          document.getElementById('hangar-plane-name').textContent = 'Macchi C.202 Folgore ("Lightning")';
+          document.getElementById('hangar-plane-sub').textContent = 'Regia Aeronautica (Italian Royal Air Force) \u2022 Daimler-Benz DB 601 V-12 Interceptor';
+
+          // Dimensions
+          document.getElementById('stat-wingspan').textContent = 'Wingspan: 10.58 m';
+          document.getElementById('stat-length').textContent = 'Length: 8.85 m';
+
+          // Sidebar camera buttons
+          camBtns[0].textContent = '3/4 Overview';
+          camBtns[1].textContent = 'Cockpit & Guns';
+          camBtns[2].textContent = 'DB 601 Engine';
+          camBtns[3].textContent = 'Spinner & Prop';
+          camBtns[4].textContent = 'Folgore Tail';
+          camBtns[5].textContent = 'Elliptical Wing';
+
+          // Armament section
+          document.getElementById('armament-title').textContent = 'Armament & Cockpit';
+          document.getElementById('armament-desc').innerHTML = '<strong>Twin 12.7 mm Breda-SAFAT machine guns</strong> mounted above DB 601 engine synchronized through propeller arc, plus wing hardpoints.';
+          document.getElementById('turret-control-row').style.display = 'none';
+          document.getElementById('flaps-control-row').style.display = 'none';
+          document.getElementById('engines-label').textContent = 'DB 601 V-12 Engine';
+
+          // Wireframe sync
+          macchiData.group.traverse(child => {
+            if (child.isMesh && child.material) child.material.wireframe = state.wireframe;
+          });
+
+          setViewPreset('overview');
+        } else {
+          if (macchiData) scene.remove(macchiData.group);
+          scene.add(ju86Data.group);
+          grid.position.y = -1.95;
+
+          // Header text & flags
+          const flagEl = document.getElementById('hangar-flag');
+          flagEl.className = 'hun-flag';
+          flagEl.innerHTML = '<span></span><span></span><span></span>';
+          document.getElementById('hangar-plane-name').textContent = 'Junkers Ju 86K-2 (Weiss Manfr\u00e9d K-14)';
+          document.getElementById('hangar-plane-sub').textContent = 'Royal Hungarian Air Force (Magyar Kir\u00e1lyi Honv\u00e9d L\u00e9gier\u0151) \u2022 Twin Radial Medium Bomber';
+
+          // Dimensions
+          document.getElementById('stat-wingspan').textContent = 'Wingspan: 22.5 m';
+          document.getElementById('stat-length').textContent = 'Length: 17.8 m';
+
+          // Sidebar camera buttons
+          camBtns[0].textContent = '3/4 Overview';
+          camBtns[1].textContent = 'Ventral Turret';
+          camBtns[2].textContent = 'Radial Engines';
+          camBtns[3].textContent = 'Glazed Nose';
+          camBtns[4].textContent = 'Hungarian Tail';
+          camBtns[5].textContent = 'Double Wing';
+
+          // Armament section
+          document.getElementById('armament-title').textContent = 'Turret & Armament';
+          document.getElementById('armament-desc').innerHTML = '<strong>Ventral "Dustbin" Turret (K\u00f6rbchen):</strong> Retractable belly observation pod with rearward 7.92mm machine gun (as seen deployed in the historical Hungarian photo).';
+          document.getElementById('turret-control-row').style.display = 'flex';
+          document.getElementById('flaps-control-row').style.display = 'flex';
+          document.getElementById('engines-label').textContent = 'Twin Radial Engines';
+
+          // Wireframe sync
+          ju86Data.group.traverse(child => {
+            if (child.isMesh && child.material) child.material.wireframe = state.wireframe;
+          });
+
+          setViewPreset('overview');
+        }
+      }
+
+      // Event Listeners for UI
+      document.querySelectorAll('.cam-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          setViewPreset(btn.getAttribute('data-view'));
+        });
+      });
+
+      document.getElementById('tab-ju86').addEventListener('click', () => setHangarPlane('ju86'));
+      document.getElementById('tab-c202').addEventListener('click', () => setHangarPlane('c202'));
+
+      // Ventral Turret Toggle
+      const btnTurret = document.getElementById('btn-turret');
+      btnTurret.addEventListener('click', () => {
+        state.turretDeployed = !state.turretDeployed;
+        btnTurret.textContent = state.turretDeployed ? 'DEPLOYED' : 'RETRACTED';
+        btnTurret.classList.toggle('on', state.turretDeployed);
+        if (ju86Data && typeof ju86Data.setTurretDeployment === 'function') {
+          ju86Data.setTurretDeployment(state.turretDeployed ? 1 : 0);
+        }
+      });
+
+      // Engines Toggle
+      const btnEngines = document.getElementById('btn-engines');
+      btnEngines.addEventListener('click', () => {
+        state.enginesRunning = !state.enginesRunning;
+        btnEngines.textContent = state.enginesRunning ? 'RUNNING' : 'STOPPED';
+        btnEngines.classList.toggle('on', state.enginesRunning);
+      });
+
+      // Landing Gear Toggle
+      const btnGear = document.getElementById('btn-gear');
+      btnGear.addEventListener('click', () => {
+        state.gearDown = !state.gearDown;
+        btnGear.textContent = state.gearDown ? 'EXTENDED' : 'RETRACTED';
+        btnGear.classList.toggle('on', state.gearDown);
+        if (ju86Data && typeof ju86Data.setGearDeployment === 'function') {
+          ju86Data.setGearDeployment(state.gearDown);
+        }
+      });
+
+      // Flaps Toggle
+      const btnFlaps = document.getElementById('btn-flaps');
+      btnFlaps.addEventListener('click', () => {
+        state.flapsCombat = !state.flapsCombat;
+        btnFlaps.textContent = state.flapsCombat ? 'COMBAT (20\u00b0)' : 'RAISED (0\u00b0)';
+        btnFlaps.classList.toggle('on', state.flapsCombat);
+        if (ju86Data && typeof ju86Data.setFlapDroop === 'function') {
+          ju86Data.setFlapDroop(state.flapsCombat ? 0.35 : 0);
+        }
+      });
+
+      // Wireframe Toggle
+      const btnWireframe = document.getElementById('btn-wireframe');
+      btnWireframe.addEventListener('click', () => {
+        state.wireframe = !state.wireframe;
+        btnWireframe.textContent = state.wireframe ? 'ON' : 'OFF';
+        btnWireframe.classList.toggle('on', state.wireframe);
+        const activePlane = (state.currentPlane === 'c202') ? macchiData : ju86Data;
+        if (activePlane && activePlane.group) {
+          activePlane.group.traverse(child => {
+            if (child.isMesh && child.material) {
+              child.material.wireframe = state.wireframe;
+            }
+          });
+        }
+      });
+
+      // Environment Mode Toggle
+      const btnEnv = document.getElementById('btn-env');
+      btnEnv.addEventListener('click', () => {
+        if (state.envMode === 'daylight') {
+          state.envMode = 'sunset';
+          btnEnv.textContent = 'SUNSET';
+          scene.background.set(0x22131b);
+          scene.fog.color.set(0x22131b);
+          sunLight.color.set(0xff8844);
+          ambientLight.color.set(0x884455);
+        } else if (state.envMode === 'sunset') {
+          state.envMode = 'hangar';
+          btnEnv.textContent = 'HANGAR';
+          scene.background.set(0x11161d);
+          scene.fog.color.set(0x11161d);
+          sunLight.color.set(0xdbeafe);
+          ambientLight.color.set(0x38bdf8);
+        } else {
+          state.envMode = 'daylight';
+          btnEnv.textContent = 'DAYLIGHT';
+          scene.background.set(0x0e1722);
+          scene.fog.color.set(0x0e1722);
+          sunLight.color.set(0xfff6e5);
+          ambientLight.color.set(0xd4e4f7);
+        }
+      });
+
+      // Auto Rotate Toggle
+      const btnAutoRotate = document.getElementById('btn-autorotate');
+      btnAutoRotate.addEventListener('click', () => {
+        state.autoRotate = !state.autoRotate;
+        btnAutoRotate.textContent = state.autoRotate ? 'ON' : 'OFF';
+        btnAutoRotate.classList.toggle('on', state.autoRotate);
+      });
+
+      // Export OBJ Download
+      document.getElementById('btn-export-obj').addEventListener('click', () => {
+        const file = (state.currentPlane === 'c202') ? 'macchi_c202.obj' : 'hungarian_ju86.obj';
+        const a = document.createElement('a');
+        a.href = file;
+        a.download = file;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+
+      // Mouse Orbit & Pan Interaction
+      window.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#ui-container')) return;
+        if (e.button === 0) {
+          state.orbit.isDragging = true;
+          state.orbit.prevX = e.clientX;
+          state.orbit.prevY = e.clientY;
+        } else if (e.button === 2) {
+          state.orbit.isPanning = true;
+          state.orbit.prevX = e.clientX;
+          state.orbit.prevY = e.clientY;
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (state.orbit.isDragging) {
+          const dx = e.clientX - state.orbit.prevX;
+          const dy = e.clientY - state.orbit.prevY;
+          state.orbit.camTheta -= dx * 0.007;
+          state.orbit.camPhi = Math.max(0.05, Math.min(Math.PI - 0.05, state.orbit.camPhi - dy * 0.007));
+          state.orbit.prevX = e.clientX;
+          state.orbit.prevY = e.clientY;
+        } else if (state.orbit.isPanning) {
+          const dx = e.clientX - state.orbit.prevX;
+          const dy = e.clientY - state.orbit.prevY;
+          const factor = state.orbit.radius * 0.0015;
+          const right = new THREE.Vector3().crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3())).negate().normalize();
+          const up = camera.up.clone().normalize();
+          state.orbit.camTarget.add(right.multiplyScalar(dx * factor));
+          state.orbit.camTarget.add(up.multiplyScalar(-dy * factor));
+          state.orbit.prevX = e.clientX;
+          state.orbit.prevY = e.clientY;
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        state.orbit.isDragging = false;
+        state.orbit.isPanning = false;
+      });
+
+      window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      window.addEventListener('wheel', (e) => {
+        if (e.target.closest('#sidebar')) return;
+        state.orbit.camRadius = Math.max(2.5, Math.min(60.0, state.orbit.camRadius + e.deltaY * 0.018));
+      }, { passive: true });
+
+      // Window Resize
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Animation Loop
+      let lastTime = performance.now();
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const now = performance.now();
+        const dt = Math.min(0.1, (now - lastTime) / 1000);
+        lastTime = now;
+
+        // Auto Rotation
+        if (state.autoRotate) {
+          state.orbit.camTheta += dt * 0.25;
+        }
+
+        // Spin Propellers
+        if (state.enginesRunning) {
+          const activePlane = (state.currentPlane === 'c202') ? macchiData : ju86Data;
+          if (activePlane && activePlane.propellers) {
+            for (let prop of activePlane.propellers) {
+              prop.rotation.z += state.propSpeed * dt;
+            }
+          }
+        }
+
+        // Ventral Turret Idle (Ju 86 only)
+        if (state.currentPlane === 'ju86' && state.turretDeployed && ju86Data.ventralTurret) {
+          const turretMG = ju86Data.ventralTurret.getObjectByName('Ventral_MachineGun');
+          if (turretMG) {
+            turretMG.rotation.z = Math.sin(now * 0.001) * 0.08;
+          }
+        }
+
+        // Smooth Camera Orbit Interpolation
+        state.orbit.theta = THREE.MathUtils.lerp(state.orbit.theta, state.orbit.camTheta, 10 * dt);
+        state.orbit.phi = THREE.MathUtils.lerp(state.orbit.phi, state.orbit.camPhi, 10 * dt);
+        state.orbit.radius = THREE.MathUtils.lerp(state.orbit.radius, state.orbit.camRadius, 10 * dt);
+        state.orbit.target.lerp(state.orbit.camTarget, 8 * dt);
+
+        // Spherical to Cartesian
+        const sinPhi = Math.sin(state.orbit.phi);
+        const cosPhi = Math.cos(state.orbit.phi);
+        const sinTheta = Math.sin(state.orbit.theta);
+        const cosTheta = Math.cos(state.orbit.theta);
+
+        camera.position.set(
+          state.orbit.target.x + state.orbit.radius * sinPhi * sinTheta,
+          state.orbit.target.y + state.orbit.radius * cosPhi,
+          state.orbit.target.z + state.orbit.radius * sinPhi * cosTheta
+        );
+        camera.lookAt(state.orbit.target);
+
+        renderer.render(scene, camera);
+      }
+      animate();
+    })();
+  </script>
+</body>
+</html>

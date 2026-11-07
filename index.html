@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Aerials</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Three.js: Local file first, CDN fallback if opened elsewhere -->
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <!-- Aircraft & Target 3D Model Builders -->
+  <script src="ww2_aircraft_builders.js"></script>
+  <script src="barrage_balloon_builder.js"></script>
+</head>
+<body>
+  <!-- 3D Canvas WebGL Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Flight HUD Overlay (Hidden while in Main Menu) -->
+  <div id="hud-overlay" class="hidden">
+    <!-- Multiplayer: ping to the host / player count, and the "keep the game in front" note for the host -->
+    <div id="net-ping"></div>
+    <div id="net-hud-note"></div>
+    <!-- War Thunder Style Telemetry (Top-Left) -->
+    <div id="wt-telemetry">
+      <!-- Main flight readout: value on the left, label on the right -->
+      <div class="wt-main">
+        <div class="wt-row"><span class="wt-val" id="wt-throttle">35 %</span><span class="wt-label">THR</span></div>
+        <div class="wt-row"><span class="wt-val"><span id="wt-speed">0</span> <span class="wt-unit">km/h</span></span><span class="wt-label">IAS</span></div>
+        <div class="wt-row"><span class="wt-val"><span id="wt-alt">0</span> <span class="wt-unit">m</span></span><span class="wt-label">ALT</span></div>
+        <div class="wt-row" id="wt-gun-row"><span class="wt-val" id="wt-gun-heat" style="color: #22c55e;">READY</span><span class="wt-label wt-label-sel">MG</span></div>
+        <div class="wt-row" id="wt-gear-row"><span class="wt-val" id="wt-gear" style="color: #22c55e;">DOWN</span><span class="wt-label">GEAR</span></div>
+      </div>
+
+      <!-- Secondary status (smaller, dimmer) -->
+      <div class="wt-sub">
+        <div class="wt-row" id="wt-hp-row"><span class="wt-val"><span id="wt-plane-hp" style="color: #22c55e;">120</span> <span class="wt-unit">HP</span></span><span class="wt-label">ARMOR</span></div>
+        <div class="wt-row" id="wt-lives-row"><span class="wt-val" id="wt-plane-lives" style="color: #fbbf24;">♥♥♥ (3/3)</span><span class="wt-label">LIVES</span></div>
+        <div class="wt-row"><span class="wt-val" id="wt-flaps">RAISED</span><span class="wt-label">FLAPS</span></div>
+        <div class="wt-row" id="wt-bomb-row"><span class="wt-val" id="wt-bombs" style="color: #38bdf8;">2/2 [B]</span><span class="wt-label">BOMBS</span></div>
+        <div class="wt-row" id="wt-wingman-row"><span class="wt-val" id="wt-wingman" style="color: #38bdf8;">PARKED ♥♥♥</span><span class="wt-label">WING #2</span></div>
+        <div class="wt-row" id="wt-bases-row"><span class="wt-val" id="wt-bases" style="color: #fca5a5;">3/3 ENEMY</span><span class="wt-label">BASES</span></div>
+        <div class="wt-row" id="wt-targets-row"><span class="wt-val" id="wt-targets" style="color: #fca5a5;">6/6 AIR</span><span class="wt-label">ENEMIES</span></div>
+        <div class="wt-row" id="wt-instructor-row"><span class="wt-instructor-tag" id="wt-instructor">INSTRUCTOR</span></div>
+      </div>
+    </div>
+
+    <!-- Top Heading Compass -->
+    <div id="compass-bar">
+      <span>HDG</span>
+      <span class="heading-val" id="hud-heading">000°</span>
+      <span id="hud-compass-cardinal">N</span>
+    </div>
+
+    <!-- War Thunder Dual Reticle System -->
+    <!-- 1. Mouse Aim Reticle: Where the mouse is pointing in world space -->
+    <div id="mouse-aim-reticle">
+      <div class="aim-ring"></div>
+      <div class="aim-center-dot"></div>
+    </div>
+
+    <!-- 2. Aircraft Boresight / Gunsight: Where the airplane nose is actually pointed -->
+    <div id="aircraft-crosshair">
+      <svg class="crosshair-heat-svg" viewBox="0 0 44 44">
+        <circle class="heat-track" cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2" />
+        <circle class="heat-fill" id="crosshair-heat-fill" cx="22" cy="22" r="18" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="113.1" stroke-dashoffset="113.1" stroke-linecap="round" transform="rotate(-90 22 22)" />
+      </svg>
+      <div class="crosshair-center"></div>
+      <div class="crosshair-wing-l"></div>
+      <div class="crosshair-wing-r"></div>
+      <div class="crosshair-pip top"></div>
+      <div class="crosshair-pip bottom"></div>
+    </div>
+
+    <!-- Connection Line / Lead dynamic connector SVG -->
+    <svg id="reticle-lead-svg">
+      <line id="reticle-lead-line" x1="0" y1="0" x2="0" y2="0" stroke="rgba(255, 255, 255, 0.4)" stroke-dasharray="3,3" stroke-width="1.5" />
+    </svg>
+
+    <!-- War Thunder Style Hit Marker (4 diagonal ticks ✕ centered on crosshair) -->
+    <div id="hit-marker">
+      <div class="hit-tick tl"></div>
+      <div class="hit-tick tr"></div>
+      <div class="hit-tick bl"></div>
+      <div class="hit-tick br"></div>
+    </div>
+
+    <!-- Combat Hit & Kill Notification Banner -->
+    <div id="combat-banner"></div>
+
+    <!-- Enemy Non-AI 3D Projected Target Markers, Health Bars & Lead Indicators -->
+    <div id="enemy-hud-container"></div>
+
+    <!-- Warning Banner -->
+    <div id="warning-banner">⚠️ PULL UP! TERRAIN ⚠️</div>
+
+    <!-- Flak Warning (you are inside a marked burst radius) -->
+    <div id="flak-vignette"></div>
+    <div id="flak-warning">⚠ IN FLAK BLAST ZONE — BREAK!</div>
+
+    <!-- Minimap Radar (Top-Right) -->
+    <div id="minimap-card">
+      <canvas id="minimap-canvas" width="148" height="103"></canvas>
+      <div class="minimap-title">TACTICAL MAP</div>
+    </div>
+
+    <!-- Bottom HUD Area -->
+    <div id="bottom-panel">
+      <!-- Action Buttons -->
+      <div id="hud-buttons">
+        <button class="hud-btn" id="btn-bomb" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.5);">Drop Bomb (B)</button>
+        <button class="hud-btn hud-btn-static" id="btn-airfield" disabled title="Home base is fixed for the whole game">Home: AF1 North</button>
+        <button class="hud-btn" id="btn-gear">Gear: Down (G)</button>
+        <button class="hud-btn" id="btn-flaps">Flaps: Raised</button>
+        <button class="hud-btn" id="btn-camera">Camera: Chase</button>
+        <button class="hud-btn" id="btn-sound">Sound: On</button>
+      </div>
+    </div>
+
+    <!-- Touch Flight Controls (phones & tablets; shown when body has .touch-mode) -->
+    <div id="touch-controls">
+      <!-- Swipe anywhere free to steer the aim point (or orbit the camera while LOOK is held) -->
+      <div id="touch-look-zone"></div>
+
+      <button type="button" class="touch-chip touch-pause-btn" id="touch-pause-btn" aria-label="Pause">❚❚</button>
+
+      <!-- Throttle lever: drag up / down; the red top band is WEP -->
+      <div id="touch-throttle">
+        <div class="touch-throttle-track">
+          <div class="touch-throttle-wep"></div>
+          <div class="touch-throttle-fill" id="touch-throttle-fill"></div>
+          <div class="touch-throttle-knob" id="touch-throttle-knob"></div>
+        </div>
+        <div class="touch-throttle-label" id="touch-throttle-label">35%</div>
+      </div>
+
+      <!-- Flight stick: steers the aim point relative to the nose -->
+      <div id="touch-stick">
+        <div class="touch-stick-knob" id="touch-stick-knob"></div>
+      </div>
+
+      <!-- Aircraft toggles -->
+      <div id="touch-toggles">
+        <button type="button" class="touch-chip" id="touch-gear">GEAR</button>
+        <button type="button" class="touch-chip" id="touch-flaps">FLAPS</button>
+        <button type="button" class="touch-chip" id="touch-cam">CAM</button>
+      </div>
+
+      <!-- Weapons & view -->
+      <div id="touch-actions">
+        <button type="button" class="touch-btn touch-fire" id="touch-fire">FIRE</button>
+        <button type="button" class="touch-btn touch-zoom" id="touch-zoom">ZOOM</button>
+        <button type="button" class="touch-btn touch-bomb" id="touch-bomb">BOMB</button>
+        <button type="button" class="touch-btn touch-look" id="touch-look">LOOK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Menu & Pause Overlay -->
+  <div id="pointer-lock-prompt" class="main-menu-mode menu-screen-modes">
+    <div class="prompt-box">
+      <div class="menu-top-badge" id="menu-mode-badge">★ PACIFIC &amp; DESERT ARCHIPELAGO THEATER ★</div>
+      <h2 id="menu-main-title">AERIALS</h2>
+      <p class="prompt-sub" id="menu-sub-title">SELECT CALLSIGN &amp; AIRCRAFT TO DEPLOY INTO THE THEATER</p>
+
+      <!-- Menu Music & Volume Setting (Main Menu) -->
+      <div id="menu-music-section">
+        <div class="music-setting-row">
+          <div class="music-info-group">
+            <button type="button" class="music-icon-btn" id="music-mute-btn" title="Toggle Mute">🎵</button>
+            <div class="music-titles">
+              <span class="music-label">MENU THEME</span>
+              <span class="music-track-indicator" id="music-track-name">Track 1</span>
+            </div>
+          </div>
+          <div class="music-slider-group">
+            <label class="music-vol-icon" for="music-volume-slider">VOL</label>
+            <input type="range" id="music-volume-slider" min="0" max="100" value="60" aria-label="Music Volume" />
+            <span class="music-volume-val" id="music-volume-val">60%</span>
+          </div>
+          <div class="music-controls-group">
+            <button type="button" class="music-ctrl-btn" id="btn-music-prev" title="Previous Song">⏮</button>
+            <button type="button" class="music-ctrl-btn" id="btn-music-playpause" title="Play / Pause">⏸</button>
+            <button type="button" class="music-ctrl-btn" id="btn-music-next" title="Next Song (Skip 50s Interval)">⏭</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Mode Select (very first Main Menu screen) -->
+      <div id="mode-select-section">
+        <div class="menu-section-label">SELECT GAME MODE</div>
+        <div class="mode-cards-container">
+          <button type="button" class="mode-card" id="mode-card-classic" data-mode="classic">
+            <span class="mode-card-icon">✈</span>
+            <span class="mode-card-title">CLASSIC</span>
+            <span class="mode-card-sub">Your squadron vs 3 enemy squadrons &bull; pick one of 6 aircraft, each with its own specialty</span>
+          </button>
+          <button type="button" class="mode-card factions" id="mode-card-factions" data-mode="factions">
+            <span class="mode-card-flags" id="mode-card-flags"></span>
+            <span class="mode-card-title">FACTIONS</span>
+            <span class="mode-card-sub">4 nations, every team on its own &bull; fighter, heavy fighter &amp; bomber per nation, with a national bonus</span>
+          </button>
+          <button type="button" class="mode-card online" id="mode-card-online" data-mode="online">
+            <span class="mode-card-icon">🌐</span>
+            <span class="mode-card-title">MULTIPLAYER</span>
+            <span class="mode-card-sub">Play Classic or Factions online with friends &bull; create a room and share the 4-digit code</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Multiplayer: create / join a room -->
+      <div id="online-section">
+        <div class="net-row">
+          <label class="pilot-input-label" for="net-name">YOUR NAME</label>
+          <input type="text" id="net-name" spellcheck="false" autocomplete="off" placeholder="PILOT" />
+        </div>
+        <div class="net-split">
+          <div class="net-box">
+            <div class="menu-section-label">HOST A GAME</div>
+            <p class="net-help">Create a room, then share its code or invite link.</p>
+            <button type="button" class="net-btn primary" id="net-create-btn">CREATE ROOM</button>
+          </div>
+          <div class="net-box">
+            <div class="menu-section-label">JOIN A GAME</div>
+            <p class="net-help">Type the 4-digit code from the host.</p>
+            <div class="net-join-row">
+              <input type="text" id="net-code" inputmode="numeric" autocomplete="off" placeholder="0000" />
+              <button type="button" class="net-btn" id="net-join-btn">JOIN</button>
+            </div>
+          </div>
+        </div>
+        <div class="net-status" id="net-status"></div>
+      </div>
+
+      <!-- Multiplayer: room / lobby -->
+      <div id="room-section">
+        <div class="room-head">
+          <div class="room-code-box">
+            <span class="room-code-label">ROOM CODE</span>
+            <span class="room-code" id="room-code">----</span>
+          </div>
+          <div class="room-invite" id="room-invite">
+            <button type="button" class="net-btn small" id="room-copy-btn">COPY INVITE LINK</button>
+            <button type="button" class="net-btn small" id="room-share-btn">SHARE</button>
+          </div>
+        </div>
+        <p class="room-awake-note" id="room-awake-note">Keep this screen open until everyone has joined — locking the phone or switching apps closes the room.</p>
+        <div class="room-watching" id="room-watching">WATCHING — you'll play in the next match</div>
+        <div class="room-teams" id="room-teams"></div>
+        <div class="menu-section-label">YOUR AIRCRAFT</div>
+        <div class="room-planes" id="room-planes"></div>
+        <div class="menu-section-label" id="room-settings-label">MATCH SETTINGS</div>
+        <div class="room-settings" id="room-settings"></div>
+        <div class="room-actions">
+          <button type="button" class="net-btn" id="room-leave-btn">LEAVE ROOM</button>
+          <button type="button" class="net-btn primary" id="room-start-btn">START MATCH</button>
+        </div>
+        <div class="net-status" id="room-status"></div>
+      </div>
+
+      <div class="menu-back-row" id="menu-back-row">
+        <button type="button" id="menu-back-btn">◀ BACK TO MODES</button>
+        <span class="menu-mode-tag" id="menu-mode-tag">CLASSIC</span>
+      </div>
+
+      <!-- Pilot Name / Callsign Selection (Main Menu Only) -->
+      <div id="pilot-menu-section">
+        <div class="pilot-input-row">
+          <label class="pilot-input-label" for="pilot-name-input">PILOT CALLSIGN</label>
+          <div class="pilot-input-group">
+            <input type="text" id="pilot-name-input" value="MAVERICK" maxlength="16" spellcheck="false" autocomplete="off" placeholder="ENTER CALLSIGN..." />
+            <button type="button" id="btn-random-name" title="Generate Random Callsign">🎲 RANDOM</button>
+          </div>
+          <div class="pilot-presets">
+            <button type="button" class="preset-callsign-btn active" data-callsign="MAVERICK">MAVERICK</button>
+            <button type="button" class="preset-callsign-btn" data-callsign="RED TAIL">RED TAIL</button>
+            <button type="button" class="preset-callsign-btn" data-callsign="VIPER">VIPER</button>
+            <button type="button" class="preset-callsign-btn" data-callsign="NIGHTHAWK">NIGHTHAWK</button>
+            <button type="button" class="preset-callsign-btn" data-callsign="VALKYRIE">VALKYRIE</button>
+          </div>
+        </div>
+        <!-- Team size: planes per enemy team (chosen here only; locked during a sortie) -->
+        <div class="pilot-input-row team-size-row">
+          <label class="pilot-input-label">TEAM SIZE <span class="team-size-hint" id="team-size-hint">planes per enemy team</span></label>
+          <div class="team-size-group" id="team-size-group">
+            <button type="button" class="team-size-btn" data-size="1">1</button>
+            <button type="button" class="team-size-btn active" data-size="2">2</button>
+            <button type="button" class="team-size-btn" data-size="3">3</button>
+            <button type="button" class="team-size-btn" data-size="4">4</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aircraft Selection Menu with Photos (Main Menu Only) -->
+      <div id="aircraft-menu-section">
+        <div class="menu-section-label">SELECT AIRCRAFT (SHARED BASE STATS WITH UNIQUE SPECIALIZATION)</div>
+        <div class="aircraft-cards-container">
+          <div class="aircraft-card active" id="card-mustang" data-plane="mustang">
+            <div class="aircraft-photo-wrap">
+              <img class="aircraft-photo" id="photo-mustang" alt="P-51D Mustang Photo" />
+              <span class="card-badge speed">⚡ HIGHER SPEED</span>
+            </div>
+            <div class="card-body">
+              <div class="card-title">🇺🇸 P-51D Mustang</div>
+              <div class="card-sub">USAAF "Red Tail" Tuskegee Airmen</div>
+              <div class="card-specs"><b>SPD: 680 km/h (★)</b> &bull; TURN: Base &bull; DMG: 14 &bull; HP: 120</div>
+            </div>
+          </div>
+          <div class="aircraft-card" id="card-zero" data-plane="zero">
+            <div class="aircraft-photo-wrap">
+              <img class="aircraft-photo" id="photo-zero" alt="A6M2 Zero Photo" />
+              <span class="card-badge turn">🔄 HIGHER AGILITY</span>
+            </div>
+            <div class="card-body">
+              <div class="card-title">🇯🇵 A6M2 Zero</div>
+              <div class="card-sub">Imperial Japanese Navy &bull; Model 21</div>
+              <div class="card-specs">SPD: 560 km/h &bull; <b>TURN: +48% Agility (★)</b> &bull; DMG: 14 &bull; HP: 120</div>
+            </div>
+          </div>
+          <div class="aircraft-card" id="card-bf109" data-plane="bf109">
+            <div class="aircraft-photo-wrap">
+              <img class="aircraft-photo" id="photo-bf109" alt="Bf 109 Yellow 14 Photo" />
+              <span class="card-badge damage">💥 HIGHER DAMAGE</span>
+            </div>
+            <div class="card-body">
+              <div class="card-title">🇩🇪 Bf 109 "Yellow 14"</div>
+              <div class="card-sub">Luftwaffe Jagdgeschwader &bull; RLM Camo</div>
+              <div class="card-specs">SPD: 560 km/h &bull; TURN: Base &bull; <b>DMG: 26 / Hit (★)</b> &bull; HP: 120</div>
+            </div>
+          </div>
+          <div class="aircraft-card" id="card-il2" data-plane="il2">
+            <div class="aircraft-photo-wrap">
+              <img class="aircraft-photo" id="photo-il2" alt="Il-2 Sturmovik Photo" />
+              <span class="card-badge health">🛡️ HIGHER HEALTH</span>
+            </div>
+            <div class="card-body">
+              <div class="card-title">☭ Il-2 Sturmovik</div>
+              <div class="card-sub">Soviet VVS "Flying Tank"</div>
+              <div class="card-specs">SPD: 560 km/h &bull; TURN: Base &bull; DMG: 14 &bull; <b>HP: 240 Armor (★)</b></div>
+            </div>
+          </div>
+          <div class="aircraft-card" id="card-spitfire" data-plane="spitfire">
+            <div class="aircraft-photo-wrap">
+              <img class="aircraft-photo" id="photo-spitfire" alt="Spitfire Mk I Photo" />
+              <span class="card-badge allround">✈️ ALL-ROUNDER</span>
+            </div>
+            <div class="card-body">
+              <div class="card-title">🇬🇧 Spitfire Mk I</div>
+              <div class="card-sub">RAF Fighter Command &bull; "QV" Duxford</div>
+              <div class="card-specs"><b>SPD: 620 km/h</b> &bull; <b>TURN: +25%</b> &bull; <b>DMG: 19</b> &bull; HP: 120</div>
+            </div>
+          </div>
+          <div class="aircraft-card" id="card-sm79" data-plane="sm79">
+            <div class="aircraft-photo-wrap">
+              <img class="aircraft-photo" id="photo-sm79" alt="SM.79 Sparviero Photo" />
+              <span class="card-badge bomber">💣 HEAVY BOMBER</span>
+            </div>
+            <div class="card-body">
+              <div class="card-title">🇮🇹 SM.79 Sparviero</div>
+              <div class="card-sub">Regia Aeronautica &bull; "258-6"</div>
+              <div class="card-specs">SPD: 500 km/h &bull; TURN: &minus;25% &bull; DMG: 10 &bull; <b>HP: 240 (★)</b> &bull; <b>BOMBS: 6 (★)</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Factions setup: nation (flag cards), then aircraft type of that nation (Main Menu, Factions mode only) -->
+      <div id="factions-menu-section">
+        <div class="menu-section-label">1 &bull; CHOOSE YOUR NATION <span class="menu-section-note">the other 3 nations are picked at random</span></div>
+        <div class="nation-cards-container" id="nation-cards"></div>
+        <div class="menu-section-label" id="faction-aircraft-label">2 &bull; CHOOSE YOUR AIRCRAFT</div>
+        <div class="role-cards-container" id="role-cards"></div>
+        <div class="faction-rules-note" id="faction-rules-note">Every aircraft type has 2 lives. When one is lost you may pick another type of your nation that still has lives.</div>
+      </div>
+
+      <div class="prompt-features">
+        <div class="feature-item">
+          <span class="feature-key">MOUSE</span>
+          <span class="feature-desc">Mouse Aim Steering (Virtual Instructor automatically banks, pitches &amp; coordinates rudder)</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-key">LMB / RMB</span>
+          <span class="feature-desc"><b>LMB / Space</b> fires all 4 guns (600m convergence) &bull; <b>RMB / Z</b> Gunsight Zoom for precision aiming</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-key">L / BASES</span>
+          <span class="feature-desc"><b>L</b> toggles the Ballistic Lead Indicator on moving enemies &bull; Bases are random per game &mdash; <b>bomb enemy airfields</b> (3 hits) to stop their respawns</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-key">WASD / QE</span>
+          <span class="feature-desc">100% Manual Pitch/Roll/Yaw Overrides &bull; <b>Hold C</b> for 360° Free Look</span>
+        </div>
+      </div>
+
+      <!-- Touch Controls Reference (touch mode only, Main Menu & Pause) -->
+      <div id="touch-help-section">
+        <div class="feature-item"><span class="feature-key">STICK</span><span class="feature-desc">Left stick steers the aim point (Virtual Instructor flies to it) &bull; or <b>swipe</b> on free screen</span></div>
+        <div class="feature-item"><span class="feature-key">THROTTLE</span><span class="feature-desc">Drag the lever up / down &bull; red top band = WEP</span></div>
+        <div class="feature-item"><span class="feature-key">FIRE / ZOOM</span><span class="feature-desc">Hold <b>FIRE</b> to shoot &bull; tap <b>ZOOM</b> for the gunsight &bull; <b>BOMB</b> drops ordnance</span></div>
+        <div class="feature-item"><span class="feature-key">LOOK / ❚❚</span><span class="feature-desc">Hold <b>LOOK</b> and swipe to look around &bull; <b>❚❚</b> pauses &bull; sensitivity in <b>⚙ SETTINGS</b></span></div>
+      </div>
+
+      <!-- Full Controls Reference (Pause Menu Only) -->
+      <div id="pause-controls-section">
+        <div class="menu-section-label">CONTROLS</div>
+        <div class="pause-controls-grid">
+          <div class="pause-controls-col">
+            <div class="pause-controls-heading">FLIGHT</div>
+            <div class="control-row"><span><span class="key-badge">Mouse</span></span><span>Aim (Virtual Instructor steers)</span></div>
+            <div class="control-row"><span><span class="key-badge">W</span><span class="key-badge">S</span></span><span>Pitch override</span></div>
+            <div class="control-row"><span><span class="key-badge">A</span><span class="key-badge">D</span></span><span>Roll override</span></div>
+            <div class="control-row"><span><span class="key-badge">Q</span><span class="key-badge">E</span></span><span>Rudder override</span></div>
+            <div class="control-row"><span><span class="key-badge">Wheel</span><span class="key-badge">Shift</span><span class="key-badge">Ctrl</span></span><span>Throttle &amp; WEP</span></div>
+            <div class="control-row"><span><span class="key-badge">Hold C</span></span><span>Free Look (360°)</span></div>
+          </div>
+          <div class="pause-controls-col">
+            <div class="pause-controls-heading">WEAPONS</div>
+            <div class="control-row"><span><span class="key-badge">LMB</span><span class="key-badge">Space</span></span><span>Fire guns</span></div>
+            <div class="control-row"><span><span class="key-badge">RMB</span><span class="key-badge">Z</span></span><span>Gunsight zoom</span></div>
+            <div class="control-row"><span><span class="key-badge">B</span></span><span>Drop bomb</span></div>
+            <div class="control-row"><span><span class="key-badge">L</span></span><span>Lead reticle</span></div>
+            <div class="pause-controls-heading">AIRCRAFT &amp; VIEW</div>
+            <div class="control-row"><span><span class="key-badge">G</span></span><span>Landing gear</span></div>
+            <div class="control-row"><span><span class="key-badge">F</span></span><span>Flaps</span></div>
+          </div>
+          <div class="pause-controls-col">
+            <div class="pause-controls-heading">MISSION</div>
+            <div class="control-row"><span><span class="key-badge">R</span></span><span>Respawn</span></div>
+            <div class="control-row"><span><span class="key-badge">V</span></span><span>Camera mode</span></div>
+            <div class="control-row"><span><span class="key-badge">ESC</span></span><span>Pause / resume</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pause-actions-group">
+        <button id="lock-start-btn">LAUNCH SORTIE</button>
+        <button type="button" id="settings-open-btn">⚙ SETTINGS</button>
+        <button type="button" id="pause-menu-btn" style="display: none;">MAIN MENU</button>
+      </div>
+      <div class="prompt-hint">Press <b>ESC</b> during flight to pause / view Controls</div>
+    </div>
+  </div>
+
+  <!-- Settings Panel (opened from the Main Menu or the Pause screen; saved in this browser) -->
+  <div id="settings-modal" class="hidden">
+    <div class="settings-box" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-header">
+        <h3 id="settings-title">⚙ SETTINGS</h3>
+        <button type="button" class="settings-close-btn" id="settings-close-btn" aria-label="Close settings">✕</button>
+      </div>
+
+      <div class="settings-group-label">SENSITIVITY</div>
+      <div class="settings-row">
+        <span class="settings-label">MOUSE AIM</span>
+        <div class="settings-presets" data-setting="aimSens">
+          <button type="button" data-val="60">LOW</button>
+          <button type="button" data-val="100">MED</button>
+          <button type="button" data-val="160">HIGH</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="aimSens" min="20" max="300" step="5" aria-label="Mouse aim sensitivity" />
+        <span class="settings-val" data-setting-val="aimSens">100%</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">TOUCH STEERING</span>
+        <div class="settings-presets" data-setting="touchSens">
+          <button type="button" data-val="60">LOW</button>
+          <button type="button" data-val="100">MED</button>
+          <button type="button" data-val="160">HIGH</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="touchSens" min="20" max="300" step="5" aria-label="Touch steering sensitivity" />
+        <span class="settings-val" data-setting-val="touchSens">100%</span>
+      </div>
+      <div class="settings-row settings-row-choice">
+        <span class="settings-label">INVERT PITCH</span>
+        <div class="settings-presets" data-setting="invertPitch">
+          <button type="button" data-val="off">OFF</button>
+          <button type="button" data-val="on">ON</button>
+        </div>
+      </div>
+
+      <div class="settings-group-label">SPEED</div>
+      <div class="settings-row">
+        <span class="settings-label">GAME SPEED</span>
+        <div class="settings-presets" data-setting="gameSpeed">
+          <button type="button" data-val="75">SLOW</button>
+          <button type="button" data-val="100">NORMAL</button>
+          <button type="button" data-val="125">FAST</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="gameSpeed" min="50" max="150" step="5" aria-label="Game speed" />
+        <span class="settings-val" data-setting-val="gameSpeed">100%</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">THROTTLE RESPONSE</span>
+        <div class="settings-presets" data-setting="throttleRate">
+          <button type="button" data-val="60">SLOW</button>
+          <button type="button" data-val="100">MED</button>
+          <button type="button" data-val="180">FAST</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="throttleRate" min="25" max="300" step="5" aria-label="Throttle response" />
+        <span class="settings-val" data-setting-val="throttleRate">100%</span>
+      </div>
+
+      <div class="settings-group-label">FIELD OF VIEW</div>
+      <div class="settings-row">
+        <span class="settings-label">FLIGHT FOV</span>
+        <div class="settings-presets" data-setting="flightFov">
+          <button type="button" data-val="55">NARROW</button>
+          <button type="button" data-val="65">NORMAL</button>
+          <button type="button" data-val="85">WIDE</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="flightFov" min="50" max="110" step="1" aria-label="Flight field of view" />
+        <span class="settings-val" data-setting-val="flightFov" data-unit="°">65°</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">MENU FOV</span>
+        <div class="settings-presets" data-setting="menuFov">
+          <button type="button" data-val="55">NARROW</button>
+          <button type="button" data-val="65">NORMAL</button>
+          <button type="button" data-val="85">WIDE</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="menuFov" min="45" max="100" step="1" aria-label="Main menu field of view" />
+        <span class="settings-val" data-setting-val="menuFov" data-unit="°">65°</span>
+      </div>
+
+      <div class="settings-group-label">TOUCH &amp; DISPLAY</div>
+      <div class="settings-row settings-row-choice">
+        <span class="settings-label">TOUCH CONTROLS</span>
+        <div class="settings-presets" data-setting="touchMode">
+          <button type="button" data-val="auto">AUTO</button>
+          <button type="button" data-val="on">ON</button>
+          <button type="button" data-val="off">OFF</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">BUTTON SIZE</span>
+        <div class="settings-presets" data-setting="touchSize">
+          <button type="button" data-val="85">S</button>
+          <button type="button" data-val="100">M</button>
+          <button type="button" data-val="125">L</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="touchSize" min="70" max="150" step="5" aria-label="Touch button size" />
+        <span class="settings-val" data-setting-val="touchSize">100%</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">CONTROL OPACITY</span>
+        <div class="settings-presets" data-setting="touchOpacity">
+          <button type="button" data-val="40">LOW</button>
+          <button type="button" data-val="75">MED</button>
+          <button type="button" data-val="100">FULL</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="touchOpacity" min="20" max="100" step="5" aria-label="Touch control opacity" />
+        <span class="settings-val" data-setting-val="touchOpacity">75%</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">RENDER QUALITY</span>
+        <div class="settings-presets" data-setting="renderQuality">
+          <button type="button" data-val="60">LOW</button>
+          <button type="button" data-val="80">MED</button>
+          <button type="button" data-val="100">HIGH</button>
+        </div>
+        <input type="range" class="settings-slider" data-setting="renderQuality" min="40" max="100" step="5" aria-label="Render quality" />
+        <span class="settings-val" data-setting-val="renderQuality">100%</span>
+      </div>
+
+      <div class="settings-footer">
+        <button type="button" class="settings-reset-btn" id="settings-reset-btn">RESET DEFAULTS</button>
+        <button type="button" class="settings-done-btn" id="settings-done-btn">DONE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crash / Game Over Defeat Modal -->
+  <div id="crash-modal">
+    <div id="crash-badge" class="crash-badge">💥 COMBAT LOSS</div>
+    <h2 id="crash-title">AIRCRAFT DESTROYED</h2>
+    <p id="crash-reason">You crashed into the terrain!</p>
+    <div id="crash-debrief" class="crash-debrief" style="display: none;"></div>
+    <div id="crash-picker" class="crash-picker" style="display: none;"></div>
+    <div class="crash-actions">
+      <button id="restart-btn" class="crash-btn primary">RESPAWN (R)</button>
+      <button id="crash-menu-btn" class="crash-btn secondary">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Victory Screen (every enemy aircraft out of lives) -->
+  <div id="victory-modal" role="dialog" aria-modal="true" aria-labelledby="victory-title">
+    <div class="victory-badge" id="victory-badge">🏆 VICTORY — AIRSPACE SECURED</div>
+    <h2 id="victory-title">MISSION ACCOMPLISHED</h2>
+    <p id="victory-sub">All enemy aircraft have been eliminated.</p>
+    <div id="victory-debrief" class="crash-debrief"></div>
+    <div class="crash-actions">
+      <button id="victory-new-btn" class="crash-btn victory-primary">DEPLOY NEW SORTIE (R)</button>
+      <button id="victory-menu-btn" class="crash-btn secondary">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- HTML5 Audio Element for Main Menu Background Music -->
+  <audio id="menu-audio-element" preload="auto" playsinline></audio>
+
+  <!-- Main Game Script -->
+  <script src="net.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
