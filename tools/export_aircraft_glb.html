@@ -1,0 +1,235 @@
+<!doctype html>
+<!--
+  Aircraft exporter for the Godot port.
+  Builds each aircraft with the ORIGINAL ww2_aircraft_builders.js (real browser canvas, so the camo,
+  panel lines and insignia textures are painted exactly as in the web game) and serialises it to
+  binary glTF (GLB) + a JSON "hooks" file naming the parts the game animates.
+  Do not open by hand: run  python3 tools/export_aircraft_glb.py  (headless Chromium, writes
+  Aerials_godot/models/aircraft/<id>.glb and <id>.json).
+-->
+<html>
+<head><meta charset="utf-8"><title>aircraft export</title></head>
+<body>
+<script src="../three.min.js"></script>
+<script src="../ww2_aircraft_builders.js"></script>
+<script>
+'use strict';
+const PLANES = ['mustang', 'zero', 'bf109', 'il2', 'spitfire', 'sm79'];
+
+// Three r128 colours are used as authored (no colour management), i.e. they are sRGB values;
+// glTF factors are linear, so convert to keep the same on-screen colour in Godot.
+function srgbToLinear(c) { return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+
+const WRAP = { 1000: 10497, 1001: 33071, 1002: 33648 }; // Repeat, ClampToEdge, MirroredRepeat
+
+function exportGLB(root) {
+  root.updateMatrixWorld(true);
+  const json = { asset: { version: '2.0', generator: 'Aerials exporter' }, scene: 0, scenes: [{ nodes: [] }],
+    nodes: [], meshes: [], materials: [], accessors: [], bufferViews: [], buffers: [], textures: [], images: [], samplers: [] };
+  const chunks = [];
+  let byteLength = 0;
+  const extensionsUsed = new Set();
+
+  function addView(bytes, target) {
+    const pad = (4 - (byteLength % 4)) % 4;
+    if (pad) { chunks.push(new Uint8Array(pad)); byteLength += pad; }
+    const view = { buffer: 0, byteOffset: byteLength, byteLength: bytes.byteLength };
+    if (target) view.target = target;
+    chunks.push(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+    byteLength += bytes.byteLength;
+    json.bufferViews.push(view);
+    return json.bufferViews.length - 1;
+  }
+  function addAccessor(array, type, componentType, target, minmax) {
+    const view = addView(array, target);
+    const comps = { SCALAR: 1, VEC2: 2, VEC3: 3 }[type];
+    const acc = { bufferView: view, componentType, count: array.length / comps, type };
+    if (minmax) {
+      const min = [Infinity, Infinity, Infinity].slice(0, comps), max = [-Infinity, -Infinity, -Infinity].slice(0, comps);
+      for (let i = 0; i < array.length; i += comps) for (let c = 0; c < comps; c++) {
+        min[c] = Math.min(min[c], array[i + c]); max[c] = Math.max(max[c], array[i + c]);
+      }
+      acc.min = min; acc.max = max;
+    }
+    json.accessors.push(acc);
+    return json.accessors.length - 1;
+  }
+
+  const imageCache = new Map(), textureCache = new Map(), materialCache = new Map(), meshCache = new Map();
+
+  function textureIndex(tex) {
+    if (textureCache.has(tex)) return textureCache.get(tex);
+    let img = imageCache.get(tex.image);
+    if (img === undefined) {
+      const dataUrl = tex.image.toDataURL('image/png');
+      const bin = Uint8Array.from(atob(dataUrl.split(',')[1]), ch => ch.charCodeAt(0));
+      json.images.push({ bufferView: addView(bin), mimeType: 'image/png' });
+      img = json.images.length - 1;
+      imageCache.set(tex.image, img);
+    }
+    json.samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: WRAP[tex.wrapS] || 33071, wrapT: WRAP[tex.wrapT] || 33071 });
+    json.textures.push({ source: img, sampler: json.samplers.length - 1 });
+    textureCache.set(tex, json.textures.length - 1);
+    return json.textures.length - 1;
+  }
+
+  function materialIndex(mat) {
+    if (materialCache.has(mat)) return materialCache.get(mat);
+    const c = mat.color || new THREE.Color(1, 1, 1);
+    const opacity = mat.transparent ? (mat.opacity !== undefined ? mat.opacity : 1) : 1;
+    const m = {
+      name: mat.name || ('mat' + json.materials.length),
+      pbrMetallicRoughness: {
+        baseColorFactor: [srgbToLinear(c.r), srgbToLinear(c.g), srgbToLinear(c.b), opacity],
+        metallicFactor: mat.metalness !== undefined ? mat.metalness : 0,
+        roughnessFactor: mat.roughness !== undefined ? mat.roughness : 1,
+      },
+      doubleSided: mat.side === THREE.DoubleSide,
+    };
+    if (mat.transparent) m.alphaMode = 'BLEND';
+    if (mat.map && mat.map.image && mat.map.image.toDataURL) m.pbrMetallicRoughness.baseColorTexture = { index: textureIndex(mat.map) };
+    if (mat.emissive && (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0) {
+      const k = mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 1;
+      m.emissiveFactor = [srgbToLinear(mat.emissive.r) * k, srgbToLinear(mat.emissive.g) * k, srgbToLinear(mat.emissive.b) * k];
+    }
+    if (mat.isMeshBasicMaterial) { m.extensions = { KHR_materials_unlit: {} }; extensionsUsed.add('KHR_materials_unlit'); }
+    json.materials.push(m);
+    materialCache.set(mat, json.materials.length - 1);
+    return json.materials.length - 1;
+  }
+
+  function meshIndex(obj) {
+    const geo = obj.geometry, mat = obj.material, map = mat.map;
+    // Texture repeat / offset is baked into the UVs; Three's flipY means glTF v = 1 - v
+    const key = geo.uuid + '|' + (map ? map.uuid + map.repeat.x + ',' + map.repeat.y + ',' + map.offset.x + ',' + map.offset.y : '') + '|' + mat.uuid;
+    if (meshCache.has(key)) return meshCache.get(key);
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    const attrs = {};
+    attrs.POSITION = addAccessor(new Float32Array(geo.attributes.position.array), 'VEC3', 5126, 34962, true);
+    attrs.NORMAL = addAccessor(new Float32Array(geo.attributes.normal.array), 'VEC3', 5126, 34962);
+    if (geo.attributes.uv) {
+      const src = geo.attributes.uv.array, uv = new Float32Array(src.length);
+      const rx = map ? map.repeat.x : 1, ry = map ? map.repeat.y : 1, ox = map ? map.offset.x : 0, oy = map ? map.offset.y : 0;
+      const flip = map ? map.flipY !== false : true;
+      for (let i = 0; i < src.length; i += 2) {
+        uv[i] = src[i] * rx + ox;
+        const v = src[i + 1] * ry + oy;
+        uv[i + 1] = flip ? 1 - v : v;
+      }
+      attrs.TEXCOORD_0 = addAccessor(uv, 'VEC2', 5126, 34962);
+    }
+    const prim = { attributes: attrs, material: materialIndex(mat), mode: 4 };
+    if (geo.index) {
+      const idx = geo.index.array;
+      const u32 = new Uint32Array(idx.length);
+      u32.set(idx);
+      prim.indices = addAccessor(u32, 'SCALAR', 5125, 34963);
+    }
+    json.meshes.push({ primitives: [prim] });
+    meshCache.set(key, json.meshes.length - 1);
+    return json.meshes.length - 1;
+  }
+
+  function nodeIndex(obj) {
+    const n = { name: obj.name };
+    if (obj.position.lengthSq() > 0) n.translation = obj.position.toArray();
+    const q = obj.quaternion;
+    if (q.x || q.y || q.z || q.w !== 1) n.rotation = [q.x, q.y, q.z, q.w];
+    if (obj.scale.x !== 1 || obj.scale.y !== 1 || obj.scale.z !== 1) n.scale = obj.scale.toArray();
+    if (obj.isMesh && obj.geometry && obj.geometry.attributes.position && !Array.isArray(obj.material)) n.mesh = meshIndex(obj);
+    json.nodes.push(n);
+    const i = json.nodes.length - 1;
+    const kids = obj.children.filter(c => c.visible !== false || c.userData.keepHidden).map(nodeIndex);
+    if (kids.length) json.nodes[i].children = kids;
+    return i;
+  }
+
+  json.scenes[0].nodes.push(nodeIndex(root));
+  if (extensionsUsed.size) json.extensionsUsed = [...extensionsUsed];
+  json.buffers.push({ byteLength });
+
+  // GLB container: header + JSON chunk + BIN chunk
+  const enc = new TextEncoder();
+  let jsonBytes = enc.encode(JSON.stringify(json));
+  const jsonPad = (4 - (jsonBytes.length % 4)) % 4;
+  const binPad = (4 - (byteLength % 4)) % 4;
+  const total = 12 + 8 + jsonBytes.length + jsonPad + 8 + byteLength + binPad;
+  const out = new Uint8Array(total);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
+  dv.setUint32(12, jsonBytes.length + jsonPad, true); dv.setUint32(16, 0x4E4F534A, true);
+  out.set(jsonBytes, 20);
+  for (let i = 0; i < jsonPad; i++) out[20 + jsonBytes.length + i] = 0x20;
+  let off = 20 + jsonBytes.length + jsonPad;
+  dv.setUint32(off, byteLength + binPad, true); dv.setUint32(off + 4, 0x004E4942, true);
+  off += 8;
+  for (const c of chunks) { out.set(c, off); off += c.byteLength; }
+  return out;
+}
+
+function toBase64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+const euler = o => [o.rotation.x, o.rotation.y, o.rotation.z];
+
+// Name every node (unique, ASCII) and the animated parts after the hooks the game uses
+function prepare(planeId) {
+  const data = WW2AircraftBuilders.createAircraftById(planeId);
+  const root = data.group;
+  let n = 0;
+  root.traverse(o => { o.name = 'n' + (n++); });
+  root.name = planeId;
+  const hooks = { propellers: [], blur_discs: [], aileron_l: null, aileron_r: null, elevators: [], rudders: [], gear: [], dorsal_turret: null, rest: {} };
+  const tag = (obj, name, list) => {
+    if (!obj) return null;
+    obj.name = name;
+    hooks.rest[name] = euler(obj);
+    if (list) list.push(name);
+    return name;
+  };
+  (data.propellers || []).forEach((p, i) => tag(p, 'Prop' + i, hooks.propellers));
+  [].concat(data.blurDisc || []).forEach((b, i) => tag(b, 'PropBlur' + i, hooks.blur_discs));
+  hooks.aileron_l = tag(data.leftAileron, 'AileronL');
+  hooks.aileron_r = tag(data.rightAileron, 'AileronR');
+  (data.elevators || []).forEach((e, i) => tag(e, 'Elevator' + i, hooks.elevators));
+  (data.rudders || []).forEach((r, i) => tag(r, 'Rudder' + i, hooks.rudders));
+  hooks.dorsal_turret = tag(data.dorsalTurret, 'DorsalTurret');
+
+  // Gear parts are private to the builder: find them by what setGearDeployment(0) moves
+  if (data.setGearDeployment) {
+    data.setGearDeployment(1);
+    const down = new Map();
+    root.traverse(o => down.set(o, euler(o)));
+    data.setGearDeployment(0);
+    let g = 0;
+    root.traverse(o => {
+      const d = down.get(o), u = euler(o);
+      if (d && (Math.abs(d[0] - u[0]) + Math.abs(d[1] - u[1]) + Math.abs(d[2] - u[2])) > 1e-6) {
+        o.name = 'Gear' + (g++);
+        hooks.gear.push({ node: o.name, down: d, up: u });
+      }
+    });
+    data.setGearDeployment(1); // export with the gear down (runway pose)
+  }
+  return { root, hooks };
+}
+
+const results = {};
+for (const id of PLANES) {
+  try {
+    const { root, hooks } = prepare(id);
+    results[id] = { glb: toBase64(exportGLB(root)), hooks };
+  } catch (e) {
+    results[id] = { error: String(e && e.stack || e) };
+  }
+}
+const pre = document.createElement('pre');
+pre.id = 'export';
+pre.textContent = JSON.stringify(results);
+document.body.appendChild(pre);
+</script>
+</body>
+</html>

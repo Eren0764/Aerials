@@ -1,0 +1,107 @@
+{
+ "propellers": [
+  "Prop0",
+  "Prop1",
+  "Prop2"
+ ],
+ "blur_discs": [
+  "PropBlur0"
+ ],
+ "aileron_l": "AileronL",
+ "aileron_r": "AileronR",
+ "elevators": [
+  "Elevator0"
+ ],
+ "rudders": [
+  "Rudder0"
+ ],
+ "gear": [
+  {
+   "node": "Gear0",
+   "down": [
+    0,
+    0,
+    0
+   ],
+   "up": [
+    0,
+    0,
+    1.48
+   ]
+  },
+  {
+   "node": "Gear1",
+   "down": [
+    0,
+    0,
+    0
+   ],
+   "up": [
+    0,
+    0,
+    -1.48
+   ]
+  },
+  {
+   "node": "Gear2",
+   "down": [
+    0,
+    0,
+    0
+   ],
+   "up": [
+    -1.2,
+    0,
+    0
+   ]
+  }
+ ],
+ "dorsal_turret": "DorsalTurret",
+ "rest": {
+  "Prop0": [
+   0,
+   0,
+   0
+  ],
+  "Prop1": [
+   0,
+   0,
+   0
+  ],
+  "Prop2": [
+   0,
+   0,
+   0
+  ],
+  "PropBlur0": [
+   0,
+   0,
+   0
+  ],
+  "AileronL": [
+   0,
+   0,
+   0
+  ],
+  "AileronR": [
+   0,
+   0,
+   0
+  ],
+  "Elevator0": [
+   0,
+   0,
+   0
+  ],
+  "Rudder0": [
+   0,
+   0,
+   0
+  ],
+  "DorsalTurret": [
+   -2.8501358591119255,
+   0,
+   0
+  ]
+ }
+}
