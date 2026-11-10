@@ -82,6 +82,7 @@ static var enemy_home_airfields: Array[int] = []
 var terrain_mesh: MeshInstance3D
 var sea_mesh: MeshInstance3D
 var sea_mat: ShaderMaterial
+var terrain_mat: ShaderMaterial  # preset grade uniforms (desert_saturation / desert_value)
 var sun: DirectionalLight3D
 var env: Environment
 var sky_mat: ProceduralSkyMaterial
@@ -98,7 +99,7 @@ const LIGHTING_PRESET_DATA := {
 	"afternoon": {"elev": 25.0, "sun": "ffe4bf", "energy": 1.15, "top": "1d5fa6", "horizon": "a8cbe8",
 		"fog": "b4d6e8", "fog_density": 0.00002, "ambient": 0.7, "glow": 0.3, "sat": 1.0, "sea_glint": 0.5, "sea_tint": "ffd9a0", "sea_patch": 0.0, "sea_wave_speed": 1.0, "cloud": 0.3},
 	"sunset": {"elev": 8.0, "sun": "ff9a4d", "energy": 0.8, "top": "2b3f73", "horizon": "ffb27a",
-		"fog": "e0a988", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.25, "sat": 0.85, "amb_col": "d9a888", "amb_sky": 0.6, "sea_glint": 0.65, "sea_tint": "ff8a3a", "sea_patch": 0.0, "sea_wave_speed": 0.9, "cloud": 0.35},
+		"fog": "e0a988", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.25, "sat": 0.85, "desert_sat": 0.6, "desert_val": 0.92, "amb_col": "d9a888", "amb_sky": 0.6, "sea_glint": 0.65, "sea_tint": "ff8a3a", "sea_patch": 0.0, "sea_wave_speed": 0.9, "cloud": 0.35},
 	"partly_cloudy": {"elev": 50.0, "sun": "fff6e5", "energy": 1.0, "top": "2a63a0", "horizon": "b9cfdf",
 		"fog": "bcccd8", "fog_density": 0.00003, "ambient": 0.8, "glow": 0.25, "sat": 0.95, "sea_glint": 0.35, "sea_tint": "fff0d8", "sea_patch": 0.9, "sea_wave_speed": 1.1, "cloud": 0.75},
 }
@@ -125,6 +126,10 @@ func _ready() -> void:
 	_build_sea()
 	_build_terrain()
 	_build_seabed_skirt()
+	# Roads only need the terrain; they come before the desert props, which keep clear of them
+	var roads := Roads.new()
+	roads.name = "Roads"
+	add_child(roads)
 	var desert := DesertEnvironment.new()
 	desert.name = "DesertEnvironment"
 	add_child(desert)
@@ -133,9 +138,6 @@ func _ready() -> void:
 	var harbors := Harbors.new()
 	harbors.name = "Harbors"
 	add_child(harbors)
-	var roads := Roads.new()
-	roads.name = "Roads"
-	add_child(roads)
 	var trees := Trees.new()
 	trees.name = "Trees"
 	add_child(trees)
@@ -287,6 +289,10 @@ func apply_lighting_preset(preset: String, warm_grade := false) -> void:
 		sea_mat.set_shader_parameter("glint_tint", Color(d.sea_tint))
 		sea_mat.set_shader_parameter("patchiness", d.sea_patch)
 		sea_mat.set_shader_parameter("wave_speed", d.sea_wave_speed)
+	if terrain_mat:
+		# Sunset: desert/mesa albedo desaturated so the orange key light keeps them below danger red
+		terrain_mat.set_shader_parameter("desert_saturation", d.get("desert_sat", 1.0))
+		terrain_mat.set_shader_parameter("desert_value", d.get("desert_val", 1.0))
 	if clouds:
 		# unlit side = sky-tinted ambient; lit side = sun colour scaled by energy
 		clouds.apply_preset(d.cloud, sun_col * minf(d.energy, 1.1), sun.global_transform.basis.z,
@@ -444,6 +450,7 @@ func _build_terrain() -> void:
 	# Visual upgrade over the JS: per-biome procedural detail replaces the flat detail texture
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/terrain.gdshader")
+	terrain_mat = mat
 
 	terrain_mesh = MeshInstance3D.new()
 	terrain_mesh.name = "Terrain"

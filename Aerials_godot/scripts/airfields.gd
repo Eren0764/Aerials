@@ -13,6 +13,9 @@ extends Node3D
 const FRIENDLY := Color("22c55e")
 const ENEMY := Color("ef4444")
 const BEACON_SPIN := 2.2  # rad/s
+## Shared-kit weathering (art bible Section 6). Per-nation kits arrive with the faction port.
+const GROUND_SHADER := preload("res://shaders/spatial_env_airfield_ground.gdshader")
+const SURFACE_SHADER := preload("res://shaders/spatial_env_weathered_surface.gdshader")
 
 var _runway_tex: ImageTexture
 var _sites: Array[Dictionary] = []  # per airfield: node, beacon rotor, team-coloured materials
@@ -63,9 +66,9 @@ func _build_airfield(af: Dictionary) -> Dictionary:
 	var factions_size: bool = af.width > World.AIRFIELD_SIZES.classic.width
 
 	# 1. Runway (offsets lifted a few cm more than the JS so it never z-fights the flat pad)
-	var runway_mat := _mat(Color.WHITE, 0.65, 0.1)
-	runway_mat.albedo_texture = _runway_tex
-	runway_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	# Sun-faded asphalt, worn paint, centre oil line, rubber in the touchdown zones (texture = paint mask)
+	var runway_mat := _shader_mat(GROUND_SHADER, {"markings": _runway_tex,
+			"size_m": Vector2(af.width, af.length)})
 	_add(root, _plane(af.width, af.length), runway_mat, Vector3(0, 0.12, 0), Vector3.ZERO, false)
 
 	# Runway numbers ("09" / "27", the JS painted them into the texture)
@@ -73,7 +76,8 @@ func _build_airfield(af: Dictionary) -> Dictionary:
 	_runway_number(root, "27", af.length, 1.0)
 
 	# 2. Apron + taxiway connector
-	var apron_mat := _mat(Color("3a3f44"), 0.72)
+	# Weathered concrete slabs with oil stains (was flat #3a3f44)
+	var apron_mat := _shader_mat(GROUND_SHADER, {"apron": true})
 	var apron := _add(root, _plane(120, 180), apron_mat, Vector3(90, 0.08, -30), Vector3.ZERO, false)
 	if factions_size:
 		apron.scale = Vector3(1.3, 1, 1.3)
@@ -83,7 +87,9 @@ func _build_airfield(af: Dictionary) -> Dictionary:
 	var tower := Node3D.new()
 	tower.position = Vector3(130, 0, 45)
 	root.add_child(tower)
-	var concrete := _mat(Color("d1b98a") if is_desert else Color("d1d5db"), 0.75)
+	# Board-formed concrete: faint timber-plank bands, runoff streaks, per-site tone
+	var concrete := _shader_mat(SURFACE_SHADER, {"albedo": Color("d1b98a") if is_desert else Color("d1d5db"),
+			"roughness": 0.8, "rough_var": 0.08, "board_spacing": 0.6, "streak_strength": 0.14})
 	_add(tower, _box(22, 10, 18), concrete, Vector3(0, 5, 0))
 	_add(tower, _cyl(4.0, 4.8, 32, 12), concrete, Vector3(0, 24, 0))
 	_add(tower, _cyl(7.5, 6.5, 8, 12), _mat(Color("1f2937"), 0.2, 0.8), Vector3(0, 42, 0))
@@ -122,7 +128,19 @@ func _build_airfield(af: Dictionary) -> Dictionary:
 		_add(arm, beam, beam_mat, Vector3(0, 0, 9), Vector3(PI / 2.0, 0, 0), false)
 
 	# 4. Two hangars with barrel roofs
-	var hangar_mat := _mat(Color("b5925a") if is_desert else Color("475569"), 0.75 if is_desert else 0.5)
+	# Corrugated metal: vertical ribs on the walls, ribs around the barrel roof (spaced along its axis),
+	# sun-faded blotches, runoff streaks; desert hangars are painted, so less metallic and rougher
+	var hangar_col := Color("b5925a") if is_desert else Color("475569")
+	var metal := 0.1 if is_desert else 0.35
+	var rough := 0.75 if is_desert else 0.55
+	var hangar_mat := _shader_mat(SURFACE_SHADER, {"albedo": hangar_col, "roughness": rough,
+			"metallic": metal * 0.7, "rib_axis": Vector3(1, 0, 1), "rib_spacing": 0.9, "rib_strength": 0.06,
+			"streak_strength": 0.16})
+	# Roof cylinder is rotated 90 deg about X: model Y = hangar length, model Z ~ height on the arc
+	var roof_mat := _shader_mat(SURFACE_SHADER, {"albedo": hangar_col.darkened(0.06), "roughness": rough,
+			"metallic": metal, "rough_var": 0.2, "rib_axis": Vector3(0, 1, 0), "rib_spacing": 0.8,
+			"rib_strength": 0.08, "up_axis": Vector3(0, 0, 1), "across_axis": Vector3(0, 1, 0),
+			"streak_strength": 0.14})
 	var hangars: Array[Dictionary] = []
 	for h in 2:
 		var hangar := Node3D.new()
@@ -131,7 +149,7 @@ func _build_airfield(af: Dictionary) -> Dictionary:
 		hangars.append({"node": hangar, "hp": 350.0, "destroyed": false})
 		_add(hangar, _box(40, 14, 50), hangar_mat, Vector3(0, 7, 0))
 		# shortcut: full cylinder (JS used a half-cylinder); the lower half is hidden inside the box / pad
-		_add(hangar, _cyl(20, 20, 50, 16), hangar_mat, Vector3(0, 14, 0), Vector3(PI / 2.0, 0, 0))
+		_add(hangar, _cyl(20, 20, 50, 16), roof_mat, Vector3(0, 14, 0), Vector3(PI / 2.0, 0, 0))
 
 	if is_desert:
 		# Sandbag revetments around the desert hangars
@@ -247,7 +265,7 @@ func _runway_number(root: Node3D, text: String, length: float, end: float) -> vo
 	label.text = text
 	label.font_size = 256
 	label.pixel_size = 0.03
-	label.modulate = Color(0.97, 0.98, 0.99)
+	label.modulate = Color(0.8, 0.79, 0.75)  # sun-faded, matches the runway shader's worn paint
 	label.outline_size = 0
 	label.shaded = true
 	label.double_sided = false
@@ -257,7 +275,8 @@ func _runway_number(root: Node3D, text: String, length: float, end: float) -> vo
 	root.add_child(label)
 
 
-# 512 x 2048 asphalt strip: edge lines, centre dashes, piano keys, touchdown zones (createRunwayTexture)
+# 512 x 2048 asphalt strip: edge lines, centre dashes, piano keys, touchdown zones (createRunwayTexture).
+# The runway shader only uses it as a paint mask (green channel); asphalt and wear are procedural.
 func _make_runway_texture() -> ImageTexture:
 	var img := Image.create(512, 2048, false, Image.FORMAT_RGBA8)
 	img.fill(Color("26292b"))
@@ -304,6 +323,14 @@ func _mat(color: Color, roughness: float, metallic := 0.0) -> StandardMaterial3D
 	m.albedo_color = color
 	m.roughness = roughness
 	m.metallic = metallic
+	return m
+
+
+func _shader_mat(shader: Shader, params: Dictionary) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = shader
+	for k in params:
+		m.set_shader_parameter(k, params[k])
 	return m
 
 

@@ -140,7 +140,10 @@ func _add_breakwater(st: SurfaceTool, dock: Dictionary, group: Node3D) -> void:
 	line.append(Vector3(best_side * ctrl[-1].x, 0.0, ctrl[-1].y))
 	# Trapezoid section: base +-9 m at -6 m, crest +-3 m at +2.6 m; vertices jittered into rubble
 	var section := [Vector2(-9, -6), Vector2(-3, 2.6), Vector2(3, 2.6), Vector2(9, -6)]
-	var stone := World.C_RIDGE
+	# Weathered dark granite. _kit_mat reads vertex colours as linear, so convert the sRGB hex
+	# (World.C_RIDGE used raw rendered ~#a1a6a2, far too light next to the sea).
+	var stone := Color("6e716a").srgb_to_linear()
+	var wet := Color("3e4840").srgb_to_linear()  # tide band: wet, algae-darkened stone
 	var rings: Array = []
 	for i in line.size():
 		var dir := (line[mini(i + 1, line.size() - 1)] - line[maxi(i - 1, 0)]).normalized()
@@ -156,7 +159,8 @@ func _add_breakwater(st: SurfaceTool, dock: Dictionary, group: Node3D) -> void:
 			var q := [rings[i][c], rings[i][c + 1], rings[i + 1][c + 1], rings[i + 1][c]]
 			var mid: Vector3 = (q[0] + q[2]) * 0.5
 			var out := (mid - line[i]).normalized() + Vector3.UP * 0.2
-			var col := stone * (0.8 + 0.35 * _hash(mid))
+			var col := stone * (0.75 + 0.4 * _hash(mid))
+			col = col.lerp(wet * (0.85 + 0.3 * _hash(mid * 1.3)), clampf(1.0 - mid.y / 1.2, 0.0, 1.0))
 			_tri(st, q[0], q[1], q[2], col, out)
 			_tri(st, q[0], q[2], q[3], col, out)
 	for e in [[0, -1.0], [rings.size() - 1, 1.0]]:  # end caps

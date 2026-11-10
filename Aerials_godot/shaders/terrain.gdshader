@@ -31,6 +31,13 @@ uniform float fine_fade_end = 700.0;     // ...and is gone here
 uniform float mid_fade_end = 4500.0;     // mid (10-40 m) detail gone here
 group_uniforms;
 
+group_uniforms grade;
+// Per-preset albedo saturation of desert sand, mesa and sandstone (set by World.apply_lighting_preset).
+// Sunset uses < 1 so the orange-lit desert stays below danger red #ef4444 (art bible Sections 2, 4).
+uniform float desert_saturation : hint_range(0.0, 1.5) = 1.0;
+uniform float desert_value : hint_range(0.5, 1.5) = 1.0;
+group_uniforms;
+
 varying vec3 wpos;
 varying vec3 wnorm;
 varying float vdist;
@@ -140,8 +147,19 @@ void fragment() {
 	beach *= sand_k;
 	beach *= mix(0.78, 1.0, smoothstep(0.8, 1.6, h)); // damp sand at the waterline
 	col = mix(beach, col, smoothstep(1.2, 5.5, h));
-	vec3 water = mix(srgb_to_linear(shallow_color.rgb), srgb_to_linear(deep_color.rgb), smoothstep(0.0, 12.0, -wpos.y));
-	col = mix(water, col, smoothstep(-1.2, 0.35, wpos.y));
+	// noise-warped depth so seabed tint contours do not follow the 40 m triangle edges
+	float sea_n = vnoise(p / 23.0) * 0.65 + vnoise(p / 7.0 + 31.0) * 0.35;
+	vec3 water = mix(srgb_to_linear(shallow_color.rgb), srgb_to_linear(deep_color.rgb),
+			smoothstep(0.0, 12.0, -wpos.y * (0.6 + 0.8 * sea_n) + (sea_n - 0.5) * 1.5));
+	// waterline warped by ~+-1.3 m of noise so it does not trace the 40 m triangle edges
+	float wl = wpos.y + edge_n * 0.8 + (sea_n - 0.5) * 1.0;
+	col = mix(water, col, smoothstep(-1.2, 0.35, wl));
+
+	// Preset grade on the desert island only (sand/mesa/sandstone and its beach)
+	float w_desert = clamp(w_sand + w_mesa + step(0.005, w_sand + w_mesa) * steep, 0.0, 1.0);
+	float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+	vec3 graded = mix(vec3(lum), col, desert_saturation) * desert_value;
+	col = mix(col, graded, w_desert * smoothstep(-1.2, 0.35, wpos.y));
 
 	ALBEDO = col;
 	ROUGHNESS = mix(0.9, 0.82, steep) + w_sand * 0.05;

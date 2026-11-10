@@ -25,10 +25,8 @@ shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back;
 
 uniform vec3 asphalt : source_color = vec3(0.216, 0.255, 0.318); // #374151, createRoadTexture()
-uniform vec3 edge_line : source_color = vec3(1.0);
-uniform vec3 centre_line : source_color = vec3(0.918, 0.702, 0.031); // #eab308
 uniform vec3 gravel : source_color = vec3(0.45, 0.40, 0.33);
-uniform float marking_strength : hint_range(0.0, 1.0) = 0.3; // weathered paint; 1 = JS texture
+uniform float rut_strength : hint_range(0.0, 1.0) = 0.12; // darker worn wheel tracks
 uniform float half_width = 7.0;
 uniform float shoulder = 4.0;
 
@@ -49,14 +47,15 @@ void fragment() {
 	float along = UV.y;    // metres along the road
 	float grain = vnoise(wpos.xz * 0.9) * 0.6 + vnoise(wpos.xz * 0.11) * 0.4;
 	vec3 col = asphalt * (0.85 + 0.3 * grain);
-	// Painted lines from the JS texture: edge lines 0.66-1.1 m in from the edge, 0.44 m dashed centre line
-	float edge = step(half_width - 1.1, m) * step(m, half_width - 0.66);
-	float dash = step(m, 0.22) * step(fract(along / 9.0), 0.33);
-	float wear = smoothstep(0.25, 0.75, vnoise(wpos.xz * 0.35)) * marking_strength;
-	col = mix(col, edge_line * 0.8, edge * wear);
-	col = mix(col, centre_line * 0.8, dash * wear);
-	// Gravel shoulder: broken asphalt edge, then fade into the terrain
+	// Deviation from the JS texture: no painted edge / centre lines (read as modern, art bible Section 6).
+	// Period road wear instead: two darker wheel tracks per lane, and a loose-gravel verge on the edges.
+	float lane = abs(m - half_width * 0.5);               // metres from the lane centre
+	float rut = 1.0 - smoothstep(0.3, 1.1, abs(lane - 0.9)); // tracks 0.9 m either side of the lane centre
+	col *= 1.0 - rut * rut_strength * (0.6 + 0.4 * vnoise(vec2(m * 2.0, along * 0.05)));
 	float ragged = (vnoise(wpos.xz * 0.5) - 0.5) * 1.2;
+	float verge = smoothstep(half_width - 1.6, half_width - 0.4, m + ragged * 0.8);
+	col = mix(col, gravel * (0.75 + 0.45 * grain), verge * 0.7);
+	// Gravel shoulder: broken asphalt edge, then fade into the terrain
 	col = mix(col, gravel * (0.8 + 0.4 * grain), smoothstep(half_width - 0.3, half_width + 0.6, m + ragged));
 	ALBEDO = col;
 	ROUGHNESS = 0.85;

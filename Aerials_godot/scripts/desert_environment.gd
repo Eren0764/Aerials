@@ -3,8 +3,8 @@ extends Node3D
 ## Island 1 desert scenery, ported from buildDesertEnvironment() / updateDesertDust() in game.js:
 ## oasis pool, date palms (oasis grove + lowland belts), sandstone rocks and mesa boulders,
 ## dry scrub, and windblown dust motes. Repeated props are MultiMeshInstance3D (one draw per
-## mesh surface). Built once in _ready(); World adds it after the terrain.
-## Deviation from the JS: props also stay clear of World.is_near_airfield_or_harbor() and
+## mesh surface). Built once in _ready(); World adds it after the terrain and the roads.
+## Deviation from the JS: props also stay clear of World.is_near_airfield_or_harbor(), roads and
 ## runway approaches, so no prop near a base is taller than its targets (art bible Section 6).
 
 const OX := -450.0 * World.MAP_SCALE   # oasis centre (same as the terrain's oasis basin)
@@ -50,9 +50,13 @@ static func _clear_spot(x: float, z: float, pool_clearance: float) -> bool:
 		return false
 	if World.is_near_airfield_or_harbor(x, z):
 		return false
-	# shortcut: roads, balloon winches and placed defence sites are not checked (defences are built
+	if Vector2(x - OX, z - OZ).length() < pool_clearance:
+		return false
+	# shortcut: balloon winches and placed defence sites are not checked (defences are built
 	# per sortie, after this); add isNearBalloonWinch / isNearPlacedSite once those exist at boot
-	return Vector2(x - OX, z - OZ).length() >= pool_clearance
+	# Roads are built before this node (World._ready), so Roads.paths is filled; 14 m margin clears a
+	# palm crown or a lowland boulder off the 14 m road and its gravel shoulder
+	return not Roads.is_near_road(x, z, 14.0)
 
 
 func _build_oasis() -> void:
@@ -91,7 +95,7 @@ func _build_palms() -> void:
 		var px := OX + cos(ang) * r
 		var pz := OZ + sin(ang) * r
 		var py := World.get_terrain_height(px, pz)
-		if py < World.SEA_LEVEL + 1.2:
+		if py < World.SEA_LEVEL + 1.2 or Roads.is_near_road(px, pz, 14.0):
 			continue
 		xforms.append(_palm_xform(px, py, pz, 0.9 + randf() * 0.55, 0.18))
 	var attempts := 0

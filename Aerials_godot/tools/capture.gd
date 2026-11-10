@@ -80,7 +80,13 @@ func _build_shots() -> void:
 	var r := Vector3(road[i].x, World.get_terrain_height(road[i].x, road[i].y), road[i].y)
 	var rn := Vector3(road[mini(i + 3, road.size() - 1)].x, 0, road[mini(i + 3, road.size() - 1)].y)
 	var tan := (rn - Vector3(r.x, 0, r.z)).normalized()
+	# airfield_close: ~80 m up, ~240 m off the west runway's first touchdown zone (opposite the hangars),
+	# looking across the runway at the hangars
+	var td_z: float = -0.3 * west.length
+	var cam2 := World.airfield_local_to_world(west, -180.0, td_z - 160.0)
+	var aim2 := World.airfield_local_to_world(west, 60.0, td_z + 85.0)
 	SHOTS = [
+		["airfield_close", Vector3(cam2.x, west.elevation + 80.0, cam2.y), Vector3(aim2.x, west.elevation, aim2.y)],
 		["harbor_close", pier_mid - side * 200.0 + fwd * 60.0 + Vector3(0, 110, 0), pier_mid - side * 15.0],
 		["road", r - tan * 260.0 + Vector3(tan.z, 0, -tan.x) * 90.0 + Vector3(0, 130, 0), r + tan * 120.0],
 		["airfield", a + Vector3(500, 220, 500), a],
