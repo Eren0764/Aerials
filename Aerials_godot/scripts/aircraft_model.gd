@@ -18,6 +18,7 @@ var _aileron_l: Node3D
 var _aileron_r: Node3D
 var _elevators: Array[Node3D] = []
 var _rudders: Array[Node3D] = []
+var dorsal_turret: Node3D        # SM.79 gunner pivot (+Z = gun barrel), driven by DorsalGunner
 
 static var _hooks_cache := {}
 
@@ -53,6 +54,7 @@ func _load_model(plane_id: String, path: String) -> void:
 		_elevators.append(_hook(inst, n))
 	for n in hooks.rudders:
 		_rudders.append(_hook(inst, n))
+	dorsal_turret = _hook(inst, hooks.get("dorsal_turret"))
 	for g in hooks.gear:
 		_gear.append({"node": _hook(inst, g.node), "down": _vec(g.down), "up": _vec(g.up)})
 

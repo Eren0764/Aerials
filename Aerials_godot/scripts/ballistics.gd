@@ -152,7 +152,9 @@ func _process(delta: float) -> void:
 
 func _hit_targets(b: Bullet, prev: Vector3, targets: Array[Node]) -> bool:
 	for t in targets:
-		if t == b.shooter or t.bullet_team() == b.team:
+		var team: String = t.bullet_team()
+		# "friendly_targets_only" (barrage balloons): only the player's side can shoot them
+		if t == b.shooter or team == b.team or (team == "friendly_targets_only" and b.team != "friendly"):
 			continue
 		var hit: Dictionary = t.bullet_hit_test(prev, b.pos)
 		if not hit.is_empty():

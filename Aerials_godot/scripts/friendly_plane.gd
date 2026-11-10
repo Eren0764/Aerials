@@ -99,6 +99,7 @@ func _ready() -> void:
 	guns.team = "friendly"
 	guns.tracer_override = Color("38bdf8")  # friendly AI tracers are sky blue
 	add_child(guns)
+	add_child(DorsalGunner.new())
 	park(25.0)
 
 

@@ -69,6 +69,9 @@ const DEFS := {
 		"hardpoints": [Vector3(-0.05, 1.55, 2.4), Vector3(0.05, 1.55, 2.4), Vector3(-0.05, 1.55, 2.4), Vector3(0.05, 1.55, 2.4)],
 		"weapons": {"muzzle_velocity": 765.0, "fire_rate_rpm": 700.0, "tracer_color": Color("fde68a"),
 			"tracer_length": 18.0, "convergence_distance": 600.0, "heat_per_shot": 0.008},
+		# Swivelling 12.7mm Breda behind the hump; fires on hostiles behind / above / beside (never dead ahead or below)
+		"dorsal_gunner": {"mount": Vector3(0, 1.36, -2.3), "range": 850.0, "rpm": 520.0, "spread": 0.016,
+			"burst_on": 0.9, "burst_off": 0.6},
 		# 6 bombs: two rows of three beside the ventral gondola
 		"bomb_rack": [Vector3(0.55, -0.85, 2.4), Vector3(-0.55, -0.85, 2.4), Vector3(0.55, -0.85, 0.9),
 			Vector3(-0.55, -0.85, 0.9), Vector3(0.55, -0.85, -0.6), Vector3(-0.55, -0.85, -0.6)]},

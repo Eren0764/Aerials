@@ -21,6 +21,7 @@ const MAX_CRATERS := 80  # shortcut: the JS kept every crater forever; the oldes
 var player: PlayerAircraft
 var enemies: EnemyDirector
 var airfields: Airfields
+var defenses: Defenses
 var hud: Hud
 
 var _ballistics: Ballistics
@@ -157,6 +158,8 @@ func _detonate(p: Vector3) -> void:
 		player.guns.recoil_intensity = maxf(player.guns.recoil_intensity, 1.6 * (1.0 - d / 850.0))
 
 	var hit_anything := false
+	if defenses and defenses.bomb_blast(p, BLAST_RADIUS):
+		hit_anything = true
 	for ep in enemies.planes:
 		if ep.is_alive and p.distance_to(ep.global_position) <= BLAST_RADIUS:
 			ep.take_bullet_hit(600.0, "FUSELAGE", p, player)

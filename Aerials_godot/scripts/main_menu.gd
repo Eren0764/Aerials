@@ -432,6 +432,8 @@ func _build_cards() -> Control:
 					Color("e2e8f0") if tier == 2 else (GREEN if tier > 2 else Color("fca5a5"))))
 		if def.bomb_rack.size() > 2:
 			specs.add_child(_text("BOMBS: %d ★" % def.bomb_rack.size(), 11, GREEN))
+		if def.has("dorsal_gunner"):
+			specs.add_child(_text("DORSAL GUNNER", 11, GREEN))
 		v.add_child(specs)
 		_cards[id] = card
 		grid.add_child(card)

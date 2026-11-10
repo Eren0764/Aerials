@@ -25,6 +25,7 @@ var result: ResultScreen
 var bombs: BombSystem
 var audio: GameAudio
 var airfields: Airfields  # set by World before add_child
+var defenses: Defenses    # set by World before add_child
 
 var sortie_time := 0.0
 var is_victory := false
@@ -67,6 +68,8 @@ func _ready() -> void:
 		allies.append(ally)
 	enemies.allies = allies
 	enemies.spawn_squadrons(World.enemy_home_airfields)
+	defenses.update_sides()  # each battery now fights for its nearest base's team
+	defenses.player = player
 
 	hud = Hud.new()
 	hud.name = "HUD"
@@ -74,7 +77,11 @@ func _ready() -> void:
 	hud.camera = camera
 	hud.enemies = enemies
 	hud.allies = allies
+	hud.defenses = defenses
 	add_child(hud)
+	defenses.banner.connect(hud.show_banner)
+	defenses.hit_marker.connect(hud.hit_marker)
+	defenses.flak_danger.connect(hud.set_flak_danger)
 	player.banner.connect(hud.show_banner)
 	enemies.banner.connect(hud.show_banner)
 	enemies.player_hit.connect(hud.hit_marker)
@@ -92,6 +99,7 @@ func _ready() -> void:
 	bombs.player = player
 	bombs.enemies = enemies
 	bombs.airfields = airfields
+	bombs.defenses = defenses
 	bombs.hud = hud
 	add_child(bombs)
 
@@ -110,6 +118,8 @@ func _ready() -> void:
 	ballistics.target_hit.connect(func(_t, _m, _p, _s) -> void: audio.play("target_hit"))
 	ballistics.exploded.connect(func(_p: Vector3, scale: float) -> void: audio.explosion(scale))
 	bombs.released.connect(audio.play.bind("bomb_release"))
+	defenses.aa_fired.connect(audio.play.bind("aa_fire"))
+	defenses.flak_burst.connect(audio.flak_burst)
 
 	result = ResultScreen.new()
 	result.name = "ResultScreen"
@@ -117,6 +127,12 @@ func _ready() -> void:
 
 	player.crashed.connect(_on_player_crashed)
 	hud.show_banner("PILOT %s — %s CLEARED FOR TAKEOFF" % [pilot_name, player.def.name], false)
+
+
+func _exit_tree() -> void:
+	if defenses:
+		defenses.player = null
+		defenses.clear_flak()
 
 
 func _process(delta: float) -> void:

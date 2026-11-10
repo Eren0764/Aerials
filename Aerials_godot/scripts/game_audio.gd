@@ -99,6 +99,23 @@ func play(sound: String) -> void:
 		(_sfx[sound] as AudioStreamPlayer).play()
 
 
+func flak_burst(volume: float) -> void:
+	play_volume("flak_burst", volume)
+
+
+## One-shot at its own volume (0..1): a fresh player, so overlapping bursts keep their own level
+func play_volume(sound: String, volume: float) -> void:
+	if not sound_enabled or not _streams.has(sound) or volume <= 0.01:
+		return
+	var p := AudioStreamPlayer.new()
+	p.stream = _streams[sound]
+	p.bus = "SFX"
+	p.volume_db = linear_to_db(volume)
+	p.finished.connect(p.queue_free)
+	add_child(p)
+	p.play()
+
+
 # =====================================================================================
 # Continuous sounds (updateAudio)
 # =====================================================================================
@@ -234,6 +251,12 @@ func _render_all() -> void:
 	_streams.bomb_boom = _mix(1.5, [
 		_osc("sine", 85, 18, 1.25, 0.95, 1.30, 0.0),
 		_noise_voice(noise, "lowpass", 650, 55, 1.40, 0.707, 0.85, 1.45, 1.50)])
+	# playAAFireSound: flak cannon bark
+	_streams.aa_fire = _mix(0.25, [_osc("triangle", 165, 42, 0.22, 0.45, 0.24, 0.0, 0.25)])
+	# playFlakBurstSound at full volume (scaled per burst by play_volume)
+	_streams.flak_burst = _mix(0.5, [
+		_noise_voice(noise, "bandpass", 1100, 160, 0.4, 1.0, 0.55, 0.45, 0.5),
+		_osc("sine", 95, 32, 0.35, 0.5, 0.38, 0.0, 0.4)])
 	# Rising bugle: C5 E5 G5 … C6 held, triangle + soft detuned square
 	var notes := [[523.25, 0.0, 0.18], [659.25, 0.2, 0.18], [783.99, 0.4, 0.18], [1046.5, 0.62, 0.9]]
 	var bugle := []

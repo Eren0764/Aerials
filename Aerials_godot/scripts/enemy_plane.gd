@@ -118,6 +118,7 @@ func _ready() -> void:
 	guns.is_player = false
 	guns.team = team_id
 	add_child(guns)
+	add_child(DorsalGunner.new())
 
 
 # =====================================================================================
@@ -178,8 +179,9 @@ func take_bullet_hit(damage: float, module: String, point: Vector3, shooter: Nod
 	if role == "lead" and partner and partner.is_alive and partner.ai_state == "patrol":
 		partner.enter_patrol_state()
 
-	var by_ai := shooter is EnemyPlane  # AI-vs-AI kills carry no points; the friendly wingman's do
-	var killer := "%s SHOT DOWN:" % (shooter.pilot_name if by_player else (shooter.callsign if by_ai or shooter is FriendlyPlane else "AI"))
+	# AI-vs-AI kills (incl. another team's flak) carry no points; the friendly wingman's / friendly flak's do
+	var by_ai: bool = shooter is EnemyPlane or (shooter is Defenses.Battery and shooter.side != "friendly")
+	var killer := "%s SHOT DOWN:" % (shooter.pilot_name if by_player else (shooter.callsign if "callsign" in shooter else "AI"))
 	if lives > 0 and _home_base_destroyed():
 		lives = 0
 		permanently_dead = true

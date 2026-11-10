@@ -84,6 +84,7 @@ var sea_mesh: MeshInstance3D
 var sun: DirectionalLight3D
 var ballistics: Ballistics
 var airfields: Airfields
+var defenses: Defenses
 var menu_camera: MenuCamera
 var main_menu: MainMenu
 var _sortie: Sortie  # everything that exists only during a sortie (player, AI, cameras, HUD, pause)
@@ -202,6 +203,11 @@ func _build_persistent_systems() -> void:
 	add_child(airfields)
 	airfields.build()
 
+	defenses = Defenses.new()
+	defenses.name = "Defenses"
+	add_child(defenses)
+	defenses.build()
+
 	menu_camera = MenuCamera.new()
 	menu_camera.name = "MenuCamera"
 	add_child(menu_camera)
@@ -227,8 +233,10 @@ func start_sortie(pilot_name: String, plane_id: String, team_size: int) -> void:
 	ballistics.clear()
 	assign_random_team_bases()
 	airfields.build()  # fresh, undamaged bases for the new game (assignRandomTeamBases)
+	defenses.build()  # JS left balloons / batteries destroyed across games; reset them with the bases
 	_sortie = Sortie.new(pilot_name, plane_id, team_size)
 	_sortie.airfields = airfields
+	_sortie.defenses = defenses
 	add_child(_sortie)
 	_sortie.main_menu_requested.connect(return_to_main_menu)
 	_sortie.retry_requested.connect(retry_sortie.bind(pilot_name, plane_id, team_size))
@@ -248,6 +256,7 @@ func return_to_main_menu() -> void:
 	_end_sortie()
 	assign_random_team_bases()
 	airfields.build()  # fresh, undamaged bases for the new game (assignRandomTeamBases)
+	defenses.build()  # JS left balloons / batteries destroyed across games; reset them with the bases
 	open_main_menu()
 
 

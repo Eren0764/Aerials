@@ -28,6 +28,7 @@ var player: PlayerAircraft
 var camera: FlightCamera
 var enemies: EnemyDirector
 var allies: Array[FriendlyPlane] = []
+var defenses: Defenses  # balloons + flak batteries (optional)
 var show_lead_indicator := true
 
 var _font: Font
@@ -43,6 +44,9 @@ var _overlay: Control
 var _minimap: Control
 var _hit_timer := 0.0
 var _hit_kill := false
+var _flak_warning: PanelContainer
+var _flak_vignette: TextureRect
+var _flak_age := 0.0
 
 
 func _ready() -> void:
@@ -53,6 +57,7 @@ func _ready() -> void:
 	_build_compass()
 	_build_minimap()
 	_build_banners()
+	_build_flak_danger()
 	if not InputMap.has_action("toggle_lead"):
 		InputMap.add_action("toggle_lead")
 		var ev := InputEventKey.new()
@@ -186,7 +191,8 @@ func _update_telemetry() -> void:
 	for e in enemies.planes:
 		if not e.permanently_dead and (e.is_alive or e.lives > 0):
 			alive += 1
-	_set_val("targets", "%d/%d AIR" % [alive, enemies.planes.size()], ENEMY_TEXT)
+	var bln := " · %d/%d BLN" % [defenses.alive_balloons(), defenses.balloons.size()] if defenses else ""
+	_set_val("targets", "%d/%d AIR%s" % [alive, enemies.planes.size(), bln], ENEMY_TEXT)
 	var enemy_bases := 0
 	var standing := 0
 	for af in World.airports:
@@ -260,6 +266,46 @@ func _build_banners() -> void:
 	_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
 	_banner.visible = false
 	add_child(_centered_at(_banner, 0.22))
+
+
+# "IN FLAK BLAST ZONE" banner + red screen-edge glow (#flak-warning / #flak-vignette)
+func _build_flak_danger() -> void:
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.55, 0.80, 1.0])
+	grad.colors = PackedColorArray([Color(1, 0.125, 0.125, 0), Color(1, 0.125, 0.125, 0), Color(1, 0.125, 0.125, 0.28), Color(0.78, 0, 0, 0.55)])
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 256
+	tex.height = 256
+	_flak_vignette = TextureRect.new()
+	_flak_vignette.texture = tex
+	_flak_vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_flak_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_flak_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_flak_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flak_vignette.modulate.a = 0.0
+	add_child(_flak_vignette)
+	move_child(_flak_vignette, 0)  # under the rest of the HUD
+
+	_flak_warning = PanelContainer.new()
+	_flak_warning.add_theme_stylebox_override("panel", _box(Color(127 / 255.0, 29 / 255.0, 29 / 255.0, 0.78), 6, 6, Color("ff2a2a")))
+	_flak_warning.add_child(_label("⚠ IN FLAK BLAST ZONE — BREAK!", 15, Color.WHITE))
+	_flak_warning.visible = false
+	add_child(_centered_at(_flak_warning, 0.58))
+
+
+## time_left: seconds until the nearest marked shell the player is inside bursts (INF = none)
+func set_flak_danger(time_left: float) -> void:
+	var inside := time_left != INF
+	_flak_warning.visible = inside
+	if inside:
+		_flak_age += get_process_delta_time()
+		_flak_warning.modulate.a = 0.75 + 0.25 * signf(sin(_flak_age * TAU * 2.0))  # 0.25 s blink
+	var urgency := 1.0 - clampf(time_left / Defenses.FLAK_WARNING_TIME, 0.0, 1.0) if inside else 0.0
+	_flak_vignette.modulate.a = 0.35 + 0.65 * urgency if inside else 0.0
 
 
 # Wraps a control in a full-width row whose vertical position is a fraction of the screen height
@@ -503,6 +549,17 @@ func _draw_minimap() -> void:
 		var b := a + Vector2(sin(d.angle), cos(d.angle)) * p_len
 		m.draw_line(a, b, SKY, 2.0)
 		m.draw_circle(b, 1.8, Color("06b6d4"))
+
+	# Barrage balloons (amber dots) and flak batteries (diamonds: green friendly, orange hostile)
+	if defenses:
+		for b in defenses.balloons:
+			if b.is_alive:
+				m.draw_circle(_mm(b.position.x, b.position.z), 1.5, AMBER)
+		for aa in defenses.batteries:
+			if aa.is_alive:
+				var q := _mm(aa.position.x, aa.position.z)
+				m.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -1.8), q + Vector2(1.5, 0), q + Vector2(0, 1.8), q + Vector2(-1.5, 0)]),
+						Color("4ade80") if aa.side == "friendly" else Color("fb923c"))
 
 	# Runways, coloured by owner (home base gold, other friendly green, enemy red)
 	for i in World.airports.size():

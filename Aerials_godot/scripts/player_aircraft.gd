@@ -113,6 +113,7 @@ func _ready() -> void:
 	guns = GunSystem.new()
 	guns.name = "Guns"
 	add_child(guns)
+	add_child(DorsalGunner.new())  # idle unless the aircraft has one (SM.79)
 	set_aircraft("mustang")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -692,7 +693,7 @@ func take_bullet_hit(damage: float, module: String, point: Vector3, shooter: Nod
 	var ballistics: Ballistics = get_tree().get_first_node_in_group("ballistics")
 	ballistics.spawn_impact(point, false, final_dmg)
 	guns.recoil_intensity = minf(1.0, guns.recoil_intensity + 0.42)
-	var attacker: String = shooter.callsign if shooter is EnemyPlane else "ENEMY FIGHTER"
+	var attacker: String = shooter.callsign if shooter and "callsign" in shooter else "ENEMY FIGHTER"
 	if hp <= 0.0:
 		_trigger_crash("Shot down by %s! [%s HIT]" % [attacker, module])
 	else:

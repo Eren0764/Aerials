@@ -76,7 +76,7 @@ godot --path Aerials_godot
 | Bf 109 "Yellow 14" | Ateş gücü |
 | Il-2 Sturmovik | Zırh |
 | Spitfire Mk I | Dengeli |
-| SM.79 Sparviero | Bombardıman (6 bomba) |
+| SM.79 Sparviero | Bombardıman (6 bomba, otomatik sırt topçusu) |
 
 - Gerçek 3D modeller (`models/aircraft/*.glb`), JS model kodundan dışa aktarıldı.
 - Hareketli parçalar: pervane + pervane bulanıklığı, iniş takımı, aileron, elevator, rudder, flap.
@@ -98,10 +98,18 @@ godot --path Aerials_godot
 - Modül hasarı: motor / kanat / gövde.
 - Lead nişangahı (L): hedefin hızına ve mermi uçuş süresine göre önleme noktası.
 
+### Hava savunması
+- 8 baraj balonu: halatla bağlı, rüzgarda salınır, yerde vinç kamyonu. Sadece oyuncu tarafı vurabilir (75 HP); vurulunca yanarak düşer.
+- 12 flak bataryası (88 mm tipi): üslerin ve limanların çevresinde, en yakın üssün takımı için savaşır.
+- Flak mermisi hedefin gelecekteki konumuna atılır; patlamadan 0.9 sn önce 32 m'lik hasar küresi gösterilir (içindeysen kırmızı + "IN FLAK BLAST ZONE — BREAK!" uyarısı).
+- Patlama: ateş topu, şok dalgası, siyah flak dumanı; yakın patlamalar kamerayı sarsar.
+- Bataryalar bombayla yok edilir (300 HP).
+- SM.79 sırt topçusu: arkadan / yukarıdan gelen düşmana otomatik kısa atış (850 m), oyuncu, kanat arkadaşı ve düşman SM.79'larında.
+
 ### Bombalar ve üs hasarı
 - B ile bomba; yere düşüş nişangahı (0.3 m hassasiyet).
 - Patlama: şok dalgası, su sütunu veya krater, duman, kamera sarsıntısı.
-- 75 m etki alanı: uçaklara hasar, kule (400 HP) ve hangarlar (350 HP) yıkılır.
+- 75 m etki alanı: uçaklara hasar, kule (400 HP) ve hangarlar (350 HP) yıkılır; balonlar ve flak bataryaları da etkilenir.
 - Üs 1200 HP; yok edilen üsün takımı yeniden doğamaz.
 - Üste inince bombalar yeniden yüklenir.
 
@@ -120,16 +128,17 @@ godot --path Aerials_godot
 - Duraklat menüsü (ESC, pencere odak kaybında otomatik): kontrol listesi, devam, ana menü.
 
 ### HUD
-- Telemetri: gaz, hız, irtifa, mühimmat, takım, HP, can, flap, bomba, kanat arkadaşı, hedefler, üsler.
+- Telemetri: gaz, hız, irtifa, mühimmat, takım, HP, can, flap, bomba, kanat arkadaşı, hedefler (uçak + balon), üsler.
 - Pusula, nişan halkası, ısı göstergeli nişangah, isabet işareti.
 - Müttefik (mavi) ve düşman işaretçileri, savaş bildirimleri, uyarılar.
-- Mini harita (yok edilen üsler işaretli).
+- Mini harita (yok edilen üsler işaretli, balonlar ve flak bataryaları).
 
 ### Ses
 - Tüm sesler JS'deki osilatör ve filtrelerle kod içinde üretilir (dosya yok).
 - Motor (gaza göre pitch), rüzgar, uyarı bip sesi.
 - Silah (ağır / hafif), sıkışma, isabet, patlama, tamir, bomba, zafer fanfarı.
 - AI silah sesleri 850 m menzilde.
+- Flak topu ve flak patlaması (mesafeye göre ses seviyesi).
 
 ---
 
@@ -151,6 +160,8 @@ Aerials_godot/
     ballistics.gd            # mermiler, isabet testi, efektler
     puff_system.gd           # MultiMesh parçacık havuzu
     bomb_system.gd           # bombalar ve patlama hasarı
+    defenses.gd              # baraj balonları, flak bataryaları ve efektleri
+    dorsal_gunner.gd         # SM.79 otomatik sırt topçusu
     enemy_plane.gd           # düşman AI
     enemy_director.gd        # filo oluşturma, hedef dağıtımı
     friendly_plane.gd        # kanat arkadaşı AI
@@ -175,8 +186,7 @@ python3 tools/export_aircraft_glb.py
 ## Henüz portlanmayanlar
 
 JS sürümünde olup Godot'ta henüz olmayanlar:
-- Gemiler, yollar, ağaçlar, çöl ortamı, bulutlar
-- Uçaksavar (AA), baraj balonları, SM.79 sırt topçusu
+- Gemiler, yollar, ağaçlar, çöl ortamı, bulutlar (flak yer seçimi yollardan kaçınmayı henüz yapmıyor)
 - Fraksiyonlar, çok oyunculu modlar (`net.js`), mod seçim ekranı
 - Ayarlar paneli, dokunmatik kontroller
 - 3D konumsal ses
