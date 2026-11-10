@@ -196,7 +196,7 @@ Code follow-ups (not done here): `hud.gd` label sizes 13 px → 16 px floor with
 ## 8. Asset Standards
 
 **Art view**
-- **Formats** — aircraft and props: glTF 2.0 binary (`.glb`) + `.json` sidecar for moving-part names (existing pipeline: JS builders → `tools/export_aircraft_glb.py`). Texture sources: PNG. Music: `.ogg`. Sound effects are procedural (no files).
+- **Formats** — aircraft and props: glTF 2.0 binary (`.glb`) + `.json` sidecar for moving-part names (existing pipeline: JS builders → `Aerials_web/tools/export_aircraft_glb.py`). Texture sources: PNG. Music: `.ogg`. Sound effects are procedural (no files).
 - **Naming** — aircraft keep the pipeline's generated names (`<id>.glb`, `<id>_<n>.png`). New assets: `[category]_[name]_[variant]_[size].[ext]`, e.g. `prop_hangar_quonset_01.glb`, `tex_runway_concrete_2k.png`.
 - **Texture tiers** — aircraft 2K PBR (albedo, normal, ORM) for every aircraft (author's decision, 2026-11-10); ground targets 1K–2K; props 512–1K; terrain biome layers 2K tiling; insignia decals 512, crisp.
 - **LOD** — 3 levels per aircraft at the Section 5 distances: LOD0 < 300 m, LOD1 300 m – 1 km, LOD2 > 1 km (silhouette).

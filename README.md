@@ -6,7 +6,7 @@ Repoda iki sürüm var:
 
 | Klasör | Ne | Durum |
 |---|---|---|
-| `/` (kök) | Orijinal tarayıcı oyunu (HTML/JS, Three.js r128) | Tam oyun, referans kaynak |
+| `Aerials_web/` | Orijinal tarayıcı oyunu (HTML/JS, Three.js r128) | Tam oyun, referans kaynak |
 | `Aerials_godot/` | Godot 4 (Forward+ / Vulkan) PC portu, GDScript | Aktif geliştirme |
 
 ---
@@ -30,7 +30,7 @@ Komut satırından:
 godot --path Aerials_godot
 ```
 
-**Tarayıcı sürümü:** `index.html` dosyasına çift tıkla (veya Windows'ta `Play_Game.bat`). Sunucu gerekmez.
+**Tarayıcı sürümü:** `Aerials_web/index.html` dosyasına çift tıkla (veya Windows'ta `Aerials_web/Play_Game.bat`). Sunucu gerekmez.
 
 ---
 
@@ -171,14 +171,14 @@ Aerials_godot/
     game_audio.gd            # prosedürel ses
   models/aircraft/           # <id>.glb + <id>.json (hareketli parça adları)
   audio/                     # menü müzikleri (ogg)
-tools/
-  export_aircraft_glb.py     # JS modellerini GLB'ye aktarır (Chromium gerekir)
+Aerials_web/                 # tarayıcı sürümü (index.html, game.js, ...)
+  tools/export_aircraft_glb.py  # JS modellerini GLB'ye aktarır (Chromium gerekir)
 ```
 
 Modeller `ww2_aircraft_builders.js` değişirse yeniden üret:
 
 ```bash
-python3 tools/export_aircraft_glb.py
+python3 Aerials_web/tools/export_aircraft_glb.py
 ```
 
 ---

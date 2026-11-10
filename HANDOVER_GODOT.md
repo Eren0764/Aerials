@@ -4,7 +4,7 @@
 > **Tarih:** 10 Kasım 2026
 > **Repo kökü:** `Aerials/` (git, remote `https://github.com/Eren0764/Aerials.git`, branch `main`)
 > **Godot projesi:** `Aerials/Aerials_godot/` (Godot 4.7.2, Forward+, binary: `godot4`)
-> **Kaynak oyun:** kökteki `game.js` (~14.500 satır), `ww2_aircraft_builders.js`, `barrage_balloon_builder.js`, `net.js`, `style.css`, `index.html`
+> **Kaynak oyun:** `Aerials_web/` içindeki `game.js` (~14.500 satır), `ww2_aircraft_builders.js`, `barrage_balloon_builder.js`, `net.js`, `style.css`, `index.html`
 
 ---
 
@@ -79,7 +79,7 @@ JS davranışına sadık kal. Bilerek yapılan sapmalar `# shortcut:` veya `# JS
 | `main_menu.gd`, `menu_camera.gd`, `aircraft_photo_studio.gd` | Menü, panorama, kart fotoğrafları |
 | `game_audio.gd` | Prosedürel ses |
 
-**Model hattı:** `tools/export_aircraft_glb.py` headless Chromium ile JS model kodunu çalıştırır ve `models/aircraft/<id>.glb` + `<id>.json` (hook adları) yazar.
+**Model hattı:** `Aerials_web/tools/export_aircraft_glb.py` headless Chromium ile JS model kodunu çalıştırır ve `models/aircraft/<id>.glb` + `<id>.json` (hook adları) yazar.
 
 ---
 
@@ -111,4 +111,4 @@ JS davranışına sadık kal. Bilerek yapılan sapmalar `# shortcut:` veya `# JS
 - **Claude Code Game Studios** (`.claude/`, `CLAUDE.md`, `project.yaml`) repoya kuruldu: 78 skill, 49 ajan, hook'lar.
   - Sadece `Aerials/` klasöründe açılan oturumda aktif.
   - `project.yaml` henüz yapılandırılmadı: önce `/start` veya `/setup-engine` çalıştır. Motor Godot 4, dil GDScript, kod klasörü `Aerials_godot`.
-- Kökteki `HANDOVER_CLAUDE.md` eski tarayıcı sürümünün devir notu (JS tarafı için referans).
+- `Aerials_web/HANDOVER_CLAUDE.md` eski tarayıcı sürümünün devir notu (JS tarafı için referans).

@@ -5,7 +5,7 @@ Runs tools/export_aircraft_glb.html in headless Chromium (real canvas, so the pa
 insignia textures come out exactly as in the web game), reads the result back from the dumped DOM
 and writes Aerials_godot/models/aircraft/<id>.glb + <id>.json (names of the animated parts).
 
-Usage:  python3 tools/export_aircraft_glb.py      (re-run whenever ww2_aircraft_builders.js changes)
+Usage:  python3 Aerials_web/tools/export_aircraft_glb.py      (re-run whenever ww2_aircraft_builders.js changes)
 """
 import base64
 import html
@@ -18,7 +18,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGE = ROOT / "tools" / "export_aircraft_glb.html"
-OUT = ROOT / "Aerials_godot" / "models" / "aircraft"
+OUT = ROOT.parent / "Aerials_godot" / "models" / "aircraft"  # ROOT is Aerials_web/
 
 
 def find_browser() -> str:
