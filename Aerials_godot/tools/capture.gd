@@ -70,7 +70,19 @@ func _build_shots() -> void:
 	var dock: Dictionary = World.find_by_id(World.docks, "dock_west")
 	var a := Vector3(west.x, 10, west.z)
 	var d := Vector3(dock.x, 0, dock.z)
+	# harbor_close: ~110 m up, ~230 m off the moored-ship side of the pier, looking at mid-pier (ships moor alongside)
+	var fwd := Vector3(sin(dock.angle), 0, cos(dock.angle))
+	var side := Vector3(fwd.z, 0, -fwd.x)
+	var pier_mid: Vector3 = d + fwd * dock.pier_length * 0.5
+	# road: West supply road at 40% of its length, seen from above and behind, looking along it
+	var road: PackedVector2Array = Roads.paths[2] if Roads.paths.size() > 2 else PackedVector2Array([Vector2(a.x, a.z), Vector2(a.x + 1, a.z)])
+	var i := int(road.size() * 0.4)
+	var r := Vector3(road[i].x, World.get_terrain_height(road[i].x, road[i].y), road[i].y)
+	var rn := Vector3(road[mini(i + 3, road.size() - 1)].x, 0, road[mini(i + 3, road.size() - 1)].y)
+	var tan := (rn - Vector3(r.x, 0, r.z)).normalized()
 	SHOTS = [
+		["harbor_close", pier_mid - side * 200.0 + fwd * 60.0 + Vector3(0, 110, 0), pier_mid - side * 15.0],
+		["road", r - tan * 260.0 + Vector3(tan.z, 0, -tan.x) * 90.0 + Vector3(0, 130, 0), r + tan * 120.0],
 		["airfield", a + Vector3(500, 220, 500), a],
 		["harbor", d + Vector3(350, 140, 350), d],
 		["desert", Vector3(north.x, 10, north.z) + Vector3(700, 320, 700), Vector3(north.x, 10, north.z)],

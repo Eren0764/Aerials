@@ -227,7 +227,7 @@ static func _resolve_site(x: float, z: float, radius: float) -> Vector2:
 	return Vector2(x, z)
 
 
-# shortcut: roads are not ported yet, so isNearRoad() is skipped; add it when roads exist
+# isValidStructureSite(); Roads must be built first (World adds it before Defenses)
 static func _valid_site(x: float, z: float, radius: float) -> bool:
 	var h := World.get_terrain_height(x, z)
 	if h < 3.0:
@@ -245,6 +245,8 @@ static func _valid_site(x: float, z: float, radius: float) -> bool:
 		var ez: float = d.z + cos(d.angle) * (d.pier_length + 40.0)
 		if World.dist_to_segment(x, z, d.x, d.z, ex, ez) < 35.0 + 25.0:
 			return false
+	if Roads.is_near_road(x, z, 18.0):
+		return false
 	for s in _placed:  # isNearPlacedSite
 		if Vector2(x - s.x, z - s.y).length() < s.z + radius:
 			return false

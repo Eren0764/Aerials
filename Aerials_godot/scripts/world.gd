@@ -130,6 +130,15 @@ func _ready() -> void:
 	add_child(desert)
 	clouds = Clouds.new()
 	add_child(clouds)
+	var harbors := Harbors.new()
+	harbors.name = "Harbors"
+	add_child(harbors)
+	var roads := Roads.new()
+	roads.name = "Roads"
+	add_child(roads)
+	var trees := Trees.new()
+	trees.name = "Trees"
+	add_child(trees)
 	_build_persistent_systems()
 	open_main_menu()
 
