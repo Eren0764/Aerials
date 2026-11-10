@@ -1,7 +1,7 @@
 class_name AircraftModel
 extends Node3D
 ## Aircraft visual: the real model exported from ww2_aircraft_builders.js
-## (res://models/aircraft/<id>.glb, made by tools/export_aircraft_glb.py) with the same animation hooks the JS
+## (res://models/aircraft/<id>.glb, made by Aerials_web/tools/export_aircraft_glb.py) with the same animation hooks the JS
 ## model data exposed: spinning propellers + blur disc, retractable gear (setGearDeployment), ailerons,
 ## elevators and rudders. Hook node names come from <id>.json. +Z = nose, wheels ~1.5 m below centre.
 ## Falls back to a simple placeholder plane if the GLB is missing.
@@ -21,6 +21,10 @@ var _rudders: Array[Node3D] = []
 var dorsal_turret: Node3D        # SM.79 gunner pivot (+Z = gun barrel), driven by DorsalGunner
 
 static var _hooks_cache := {}
+## Set false (before creating models) to get the unweathered original materials, e.g. for before/after captures.
+static var weathering_enabled := true
+static var _weather_shader: Shader
+static var _weather_cache := {}  # source StandardMaterial3D -> ShaderMaterial, shared by every plane of that type
 
 
 func _init(plane_id := "", paint_color := Color(0.40, 0.44, 0.30)) -> void:
@@ -57,6 +61,35 @@ func _load_model(plane_id: String, path: String) -> void:
 	dorsal_turret = _hook(inst, hooks.get("dorsal_turret"))
 	for g in hooks.gear:
 		_gear.append({"node": _hook(inst, g.node), "down": _vec(g.down), "up": _vec(g.up)})
+	if weathering_enabled:
+		_weather(inst)
+
+
+## Swaps each opaque, non-emissive StandardMaterial3D for a cached weathering ShaderMaterial (one per source
+## material, shared by all planes of the type). Glass, decals, prop blur discs and emissive parts keep their material.
+# shortcut: exhaust zone uses one default stack position for all types, tune per type via shader params when needed.
+func _weather(node: Node) -> void:
+	var mi := node as MeshInstance3D
+	if mi and mi.mesh:
+		for i in mi.mesh.get_surface_count():
+			var src := mi.get_active_material(i) as StandardMaterial3D
+			if src == null or src.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or src.emission_enabled \
+					or src.cull_mode != BaseMaterial3D.CULL_BACK or src.albedo_color.a < 0.99:
+				continue
+			if not _weather_cache.has(src):
+				if _weather_shader == null:
+					_weather_shader = load("res://shaders/aircraft_weathering.gdshader")
+				var sm := ShaderMaterial.new()
+				sm.shader = _weather_shader
+				sm.set_shader_parameter("albedo_color", src.albedo_color)
+				if src.albedo_texture:
+					sm.set_shader_parameter("albedo_texture", src.albedo_texture)
+				sm.set_shader_parameter("metallic_base", src.metallic)
+				sm.set_shader_parameter("roughness_base", src.roughness)
+				_weather_cache[src] = sm
+			mi.set_surface_override_material(i, _weather_cache[src])
+	for c in node.get_children():
+		_weather(c)
 
 
 # Hook nodes keep Three.js Euler order (XYZ) so rotation.x / .y can be set exactly like the JS did
