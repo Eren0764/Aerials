@@ -82,6 +82,28 @@ static var enemy_home_airfields: Array[int] = []
 var terrain_mesh: MeshInstance3D
 var sea_mesh: MeshInstance3D
 var sun: DirectionalLight3D
+var env: Environment
+var sky_mat: ProceduralSkyMaterial
+
+## Mission lighting presets (art bible §2). One is rolled per sortie; the menu always uses "afternoon".
+const LIGHTING_PRESETS := ["dawn", "noon", "afternoon", "sunset", "partly_cloudy"]
+## elev = sun elevation in degrees; fog density kept low so aircraft at 1.5 km stay readable.
+const LIGHTING_PRESET_DATA := {
+	"dawn": {"elev": 12.0, "sun": "ffc89a", "energy": 0.8, "top": "2a4f8a", "horizon": "f2c6a0",
+		"fog": "c9d3e0", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.3, "sat": 1.0, "amb_col": "e8c8b0", "amb_sky": 0.6},
+	"noon": {"elev": 70.0, "sun": "fffaed", "energy": 1.3, "top": "19559c", "horizon": "99c4eb",
+		"fog": "a0d8ef", "fog_density": 0.00002, "ambient": 0.75, "glow": 0.2, "sat": 1.0},
+	"afternoon": {"elev": 25.0, "sun": "ffe4bf", "energy": 1.15, "top": "1d5fa6", "horizon": "a8cbe8",
+		"fog": "b4d6e8", "fog_density": 0.00002, "ambient": 0.7, "glow": 0.3, "sat": 1.0},
+	"sunset": {"elev": 8.0, "sun": "ff9a4d", "energy": 0.8, "top": "2b3f73", "horizon": "ffb27a",
+		"fog": "e0a988", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.25, "sat": 0.85, "amb_col": "d9a888", "amb_sky": 0.6},
+	"partly_cloudy": {"elev": 50.0, "sun": "fff6e5", "energy": 1.0, "top": "2a63a0", "horizon": "b9cfdf",
+		"fog": "bcccd8", "fog_density": 0.00003, "ambient": 0.8, "glow": 0.25, "sat": 0.95},
+}
+const SUN_AZIMUTH_DEG := 40.0  # 0 = +Z; keeps low suns off the axis of the menu camera
+const SEA_COLOR := Color("165b7e")
+## Preset currently applied (read by other systems, e.g. a future sea shader).
+static var lighting_preset := "afternoon"
 var ballistics: Ballistics
 var airfields: Airfields
 var defenses: Defenses
@@ -110,18 +132,19 @@ func _ready() -> void:
 
 func _build_environment() -> void:
 	# Replaces the JS canvas-gradient sky dome; sun disc follows the DirectionalLight3D automatically
-	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat = ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color("19559c")
 	sky_mat.sky_horizon_color = Color("99c4eb")
 	sky_mat.sky_curve = 0.12
-	sky_mat.ground_horizon_color = Color("d1e6fa")
-	sky_mat.ground_bottom_color = Color("165b7e")
+	# Ground half blends sea into haze (old #d1e6fa read as a white band under the horizon)
+	sky_mat.ground_bottom_color = SEA_COLOR
+	sky_mat.ground_curve = 0.04
 
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	# HemisphereLight(0xffffff, 0x3d5a45, 0.7) -> sky-driven ambient
@@ -218,8 +241,38 @@ func _build_persistent_systems() -> void:
 	main_menu.launch_requested.connect(start_sortie)
 
 
+## Apply one of LIGHTING_PRESETS: sun direction/colour/energy, sky, fog, ambient and glow.
+## warm_grade = true adds the fixed main-menu warmth on top.
+func apply_lighting_preset(preset: String, warm_grade := false) -> void:
+	if not LIGHTING_PRESET_DATA.has(preset):
+		push_warning("Unknown lighting preset '%s', using afternoon" % preset)
+		preset = "afternoon"
+	var d: Dictionary = LIGHTING_PRESET_DATA[preset]
+	lighting_preset = preset
+	var fog_col := Color(d.fog)
+	var sun_col := Color(d.sun)
+	if warm_grade:
+		sun_col = sun_col.lerp(Color("ffd9a8"), 0.35)
+	sun.light_color = sun_col
+	sun.light_energy = d.energy
+	sun.rotation = Vector3(-deg_to_rad(d.elev), deg_to_rad(SUN_AZIMUTH_DEG), 0.0)
+	sky_mat.sky_top_color = Color(d.top)
+	sky_mat.sky_horizon_color = Color(d.horizon)
+	sky_mat.ground_horizon_color = fog_col.lerp(SEA_COLOR, 0.35)
+	env.fog_light_color = fog_col
+	env.fog_density = d.fog_density
+	env.ambient_light_energy = d.ambient
+	# Low suns give ~0 diffuse on flat terrain; a warm flat ambient keeps targets readable
+	env.ambient_light_color = Color(d.get("amb_col", "ffffff"))
+	env.ambient_light_sky_contribution = d.get("amb_sky", 1.0)
+	env.glow_intensity = d.glow
+	env.adjustment_enabled = warm_grade or d.sat != 1.0
+	env.adjustment_saturation = d.sat * (1.08 if warm_grade else 1.0)
+
+
 ## Main menu: no aircraft exist, the panorama camera drifts over the islands, menu music plays
 func open_main_menu() -> void:
+	apply_lighting_preset("afternoon", true)
 	main_menu.open()
 	menu_camera.start()
 
@@ -229,6 +282,7 @@ func start_sortie(pilot_name: String, plane_id: String, team_size: int) -> void:
 	if _sortie:
 		return
 	main_menu.close()
+	apply_lighting_preset(LIGHTING_PRESETS.pick_random())
 	get_tree().paused = false
 	ballistics.clear()
 	assign_random_team_bases()
