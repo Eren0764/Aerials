@@ -123,6 +123,10 @@ func _ready() -> void:
 	_build_sun()
 	_build_sea()
 	_build_terrain()
+	_build_seabed_skirt()
+	var desert := DesertEnvironment.new()
+	desert.name = "DesertEnvironment"
+	add_child(desert)
 	_build_persistent_systems()
 	open_main_menu()
 
@@ -364,6 +368,8 @@ func _build_terrain() -> void:
 	var normals := PackedVector3Array()
 	var colors := PackedColorArray()
 	var uvs := PackedVector2Array()
+	var biome := PackedByteArray()  # CUSTOM0 RGBA8: sand, mesa, rock, forest weights
+	biome.resize(count * 4)
 	verts.resize(count)
 	normals.resize(count)
 	colors.resize(count)
@@ -388,6 +394,10 @@ func _build_terrain() -> void:
 			normals[i] = Vector3(-dhdx, 1.0, -dhdz).normalized()
 
 			colors[i] = _terrain_color(x, z, y)
+			biome[i * 4] = int(_biome_out.r * 255.0)
+			biome[i * 4 + 1] = int(_biome_out.g * 255.0)
+			biome[i * 4 + 2] = int(_biome_out.b * 255.0)
+			biome[i * 4 + 3] = int(_biome_out.a * 255.0)
 
 	# Two clockwise (Godot front-face) triangles per grid cell
 	var indices := PackedInt32Array()
@@ -409,18 +419,15 @@ func _build_terrain() -> void:
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_CUSTOM0] = biome
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {},
+			Mesh.ARRAY_CUSTOM_RGBA8_UNORM << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
 
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true  # colours above are authored as sRGB hex, like the JS
-	mat.albedo_texture = _make_detail_texture()
-	mat.uv1_scale = Vector3(160.0, 160.0, 1.0)
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	mat.roughness = 0.88
-	mat.metallic = 0.05
+	# Visual upgrade over the JS: per-biome procedural detail replaces the flat detail texture
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/terrain.gdshader")
 
 	terrain_mesh = MeshInstance3D.new()
 	terrain_mesh.name = "Terrain"
@@ -429,7 +436,11 @@ func _build_terrain() -> void:
 	add_child(terrain_mesh)
 
 
-# Per-vertex colour, same rules as the colour loop in buildTerrain()
+var _biome_out := Color(0, 0, 0, 0)  # biome weights of the last _terrain_color call (r sand, g mesa, b rock, a forest)
+
+
+## Per-vertex land colour, same rules as the colour loop in buildTerrain(); also sets _biome_out.
+## Beach and shallow-water blending moved to terrain.gdshader (per pixel, no staircase).
 func _terrain_color(vx: float, vz: float, vy: float) -> Color:
 	var info := get_terrain_info(vx, vz)
 	var color: Color
@@ -444,52 +455,73 @@ func _terrain_color(vx: float, vz: float, vy: float) -> Color:
 		var d_oasis := Vector2(nx + 450.0, nz + 980.0).length()
 		if d_oasis < 95.0 and vy < SEA_LEVEL + 4.8:
 			color = C_OASIS
+			_biome_out = Color(0, 0, 0, 0)  # meadow detail
 		elif mesa_noise > 0.32 and vy > 40.0:
 			color = C_MESA_HIGH if vy > 58.0 else C_MESA_LOW
-		elif crest_factor > 0.55:
-			color = C_DUNE_CREST
-		elif dune_phase > 0.0:
-			color = C_DUNE_FACE
+			_biome_out = Color(0, 1, 0, 0)
 		else:
-			color = C_DUNE_SLIP
+			if crest_factor > 0.55:
+				color = C_DUNE_CREST
+			elif dune_phase > 0.0:
+				color = C_DUNE_FACE
+			else:
+				color = C_DUNE_SLIP
+			_biome_out = Color(1, 0, 0, 0)
 	elif info.f4 > 0.08 and vy > 70.0:
 		# Island 4: granite peak
 		color = C_GRANITE_LIGHT if vy > 145.0 else C_GRANITE_DARK
+		_biome_out = Color(0, 0, 1, 0)
 	elif vy < 45.0:
 		color = C_MEADOW
+		_biome_out = Color(0, 0, 0, 0)
 	elif vy < 100.0:
 		color = C_FOREST
+		_biome_out = Color(0, 0, 0, 1)
 	else:
 		color = C_RIDGE
-
-	# Soft shoreline: land fades into beach sand near the waterline, then into a shallow-water tint below it
-	var beach := C_BEACH_DESERT if info.f1 > 0.04 else C_BEACH_GREEN
-	color = beach.lerp(color, smoothstep(0.8, 5.5, vy))
-	if vy < 0.35:
-		var water := C_SHALLOW.lerp(C_DEEP, smoothstep(0.0, 12.0, -vy))
-		color = water.lerp(color, smoothstep(-1.2, 0.35, vy))
+		_biome_out = Color(0, 0, 1, 0)
+	if info.f1 > 0.04 and _biome_out.r + _biome_out.g == 0.0:
+		_biome_out.r = 0.01  # oasis: still a desert island for the shader's beach colour pick
 	return color
 
 
-# Neutral micro-grain detail (createTerrainDetailTexture); multiplies the vertex colours
-func _make_detail_texture() -> NoiseTexture2D:
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_VALUE
-	noise.frequency = 0.35
-	noise.fractal_octaves = 2
-
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(0.78, 0.78, 0.78))
-	ramp.set_color(1, Color(0.95, 0.95, 0.95))
-
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.generate_mipmaps = true
-	tex.color_ramp = ramp
-	tex.noise = noise
-	return tex
+## Deep seabed beyond the terrain mesh: a ring sloping from the map-edge seabed (-15 m) to -80 m
+## over 4 km, then flat out to the sea plane's extent, so the sea's depth tint has no seam at the map edge.
+func _build_seabed_skirt() -> void:
+	const RAMP := 4000.0
+	const DEEP_Y := -80.0
+	var hx := WORLD_WIDTH * 0.5
+	var hz := WORLD_LENGTH * 0.5
+	var rings := [
+		[Vector2(hx, hz), SEA_LEVEL - 15.0],
+		[Vector2(hx + RAMP, hz + RAMP), DEEP_Y],
+		[Vector2(WORLD_WIDTH, WORLD_LENGTH) * 3.0, DEEP_Y],
+	]
+	var corners := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_color(C_DEEP)
+	st.set_normal(Vector3.UP)
+	for ri in 2:
+		for ci in 4:
+			var q: Array[Vector3] = []
+			for pair in [[ri, ci], [ri, (ci + 1) % 4], [ri + 1, (ci + 1) % 4], [ri + 1, ci]]:
+				var ring: Array = rings[pair[0]]
+				var cc: Vector2 = corners[pair[1]] * (ring[0] as Vector2)
+				q.append(Vector3(cc.x, ring[1], cc.y))
+			# inner edge (ri) to outer edge (ri + 1); winding chosen so the faces point up
+			st.add_vertex(q[0]); st.add_vertex(q[2]); st.add_vertex(q[1])
+			st.add_vertex(q[0]); st.add_vertex(q[3]); st.add_vertex(q[2])
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.vertex_color_is_srgb = true
+	mat.roughness = 1.0
+	var skirt := MeshInstance3D.new()
+	skirt.name = "SeabedSkirt"
+	skirt.mesh = st.commit()
+	skirt.material_override = mat
+	skirt.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(skirt)
 
 
 # =====================================================================================
