@@ -49,7 +49,7 @@ const DEFS := {
 		"stats": {"agility": 2, "speed": 2, "damage": 4, "health": 2},
 		"cam_dist": 14.6, "cam_height": 3.6, "cockpit_offset": Vector3(0, 0.86, 0.35),
 		"hardpoints": [Vector3(-0.18, 0.48, 3.55), Vector3(0.18, 0.48, 3.55), Vector3(-2.10, -0.26, 1.50), Vector3(2.10, -0.26, 1.50)],
-		"weapons": {"muzzle_velocity": 785.0, "fire_rate_rpm": 750.0, "tracer_color": Color("ff5500"),
+		"weapons": {"muzzle_velocity": 785.0, "fire_rate_rpm": 750.0, "tracer_color": Color("ff7a1a"),
 			"tracer_length": 20.0, "convergence_distance": 600.0, "heat_per_shot": 0.009}},
 	"il2": {"name": "Ilyushin Il-2 Sturmovik", "short_name": "IL-2 STURMOVIK",
 		"stats": {"agility": 2, "speed": 2, "damage": 2, "health": 4},

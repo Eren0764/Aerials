@@ -43,8 +43,8 @@ func show_result(title: String, title_color: Color, badge: String, badge_color: 
 	for item in debrief:
 		var cell := VBoxContainer.new()
 		cell.add_theme_constant_override("separation", 0)
-		cell.add_child(_text(item[0], 10, Color("94a3b8")))
-		cell.add_child(_text(item[1], 15, item[2] if item.size() > 2 else Color.WHITE))
+		cell.add_child(_text(item[0], Hud.TEXT_LABEL, Color("94a3b8")))
+		cell.add_child(_text(item[1], Hud.TEXT_VALUE, item[2] if item.size() > 2 else Color.WHITE))
 		_debrief.add_child(cell)
 
 	for c in _buttons.get_children():
@@ -119,9 +119,9 @@ func _build() -> void:
 	box.add_child(col)
 	_title = _text("", 28, Color.WHITE)
 	col.add_child(_centered(_title))
-	_badge = _text("", 13, Color.WHITE)
+	_badge = _text("", Hud.TEXT_LABEL, Color.WHITE)
 	col.add_child(_centered(_badge))
-	_body = _text("", 14, Color("e2e8f0"))
+	_body = _text("", Hud.TEXT_LABEL, Color("e2e8f0"))
 	_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_body.custom_minimum_size = Vector2(500, 0)
@@ -139,7 +139,7 @@ func _build() -> void:
 func _text(t: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", Hud.font_px(size))
 	l.add_theme_color_override("font_color", color)
 	return l
 
@@ -153,7 +153,7 @@ func _centered(c: Control) -> CenterContainer:
 func _button(t: String, bg: Color) -> Button:
 	var b := Button.new()
 	b.text = t
-	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_font_size_override("font_size", Hud.TEXT_LABEL)
 	var normal := Hud._box(bg, 8, 11, Color(1, 1, 1, 0.25))
 	normal.content_margin_left = 26
 	normal.content_margin_right = 26

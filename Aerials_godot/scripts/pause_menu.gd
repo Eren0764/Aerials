@@ -12,6 +12,7 @@ var player: PlayerAircraft
 var enabled := true  # off while a crash / defeat / victory screen is up
 
 var _sub: Label
+var _resume_btn: Button
 
 
 func _ready() -> void:
@@ -50,6 +51,7 @@ func pause() -> void:
 	_sub.text = "PILOT: %s • %s • ALL SIMULATION FROZEN" % [player.pilot_name, String(player.def.name).to_upper()]
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_resume_btn.grab_focus()  # keyboard: arrows / Tab move, Enter / Space activate
 
 
 func resume() -> void:
@@ -57,6 +59,7 @@ func resume() -> void:
 		return
 	get_tree().paused = false
 	visible = false
+	get_viewport().gui_release_focus()  # else Space (fire) would press a hidden button
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -82,10 +85,10 @@ func _build() -> void:
 	col.add_theme_constant_override("separation", 10)
 	box.add_child(col)
 
-	col.add_child(_centered(_text("||  SIMULATION FROZEN", 12, Color("94a3b8"))))
+	col.add_child(_centered(_text("||  SIMULATION FROZEN", Hud.TEXT_LABEL, Color("94a3b8"))))
 	var title := _text("FLIGHT PAUSED", 28, Color("00ff88"))
 	col.add_child(_centered(title))
-	_sub = _text("", 13, Color("cbd5e1"))
+	_sub = _text("", Hud.TEXT_LABEL, Color("cbd5e1"))
 	col.add_child(_centered(_sub))
 
 	# Controls reference (#pause-controls-section)
@@ -103,16 +106,17 @@ func _build() -> void:
 			["F", "Flaps"], ["V", "Camera mode"],
 			["R", "Respawn"], ["M", "Sound on / off"],
 			["ESC", "Pause / resume"]]:
-		var key := _text(row[0], 12, Color("e2e8f0"))
+		var key := _text(row[0], Hud.TEXT_LABEL, Color("e2e8f0"))
 		key.add_theme_stylebox_override("normal", Hud._box(Color(1, 1, 1, 0.08), 4, 4, Color(1, 1, 1, 0.25)))
 		key.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		grid.add_child(key)
-		grid.add_child(_text(row[1], 12, Color("94a3b8")))
+		grid.add_child(_text(row[1], Hud.TEXT_LABEL, Color("94a3b8")))
 	col.add_child(_centered(grid))
 
 	var resume_btn := Button.new()
+	_resume_btn = resume_btn
 	resume_btn.text = "RESUME FLIGHT (ESC)"
-	resume_btn.add_theme_font_size_override("font_size", 16)
+	resume_btn.add_theme_font_size_override("font_size", Hud.TEXT_LABEL)
 	resume_btn.add_theme_color_override("font_color", Color("062419"))
 	resume_btn.add_theme_color_override("font_hover_color", Color("062419"))
 	resume_btn.add_theme_color_override("font_pressed_color", Color("062419"))
@@ -124,11 +128,12 @@ func _build() -> void:
 	resume_btn.add_theme_stylebox_override("normal", normal)
 	resume_btn.add_theme_stylebox_override("hover", hover)
 	resume_btn.add_theme_stylebox_override("pressed", hover)
-	resume_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	resume_btn.add_theme_stylebox_override("focus", Hud.focus_box())
+	resume_btn.add_theme_color_override("font_focus_color", Color("062419"))
 	resume_btn.pressed.connect(resume)
 	var menu_btn := Button.new()
 	menu_btn.text = "MAIN MENU"
-	menu_btn.add_theme_font_size_override("font_size", 15)
+	menu_btn.add_theme_font_size_override("font_size", Hud.TEXT_LABEL)
 	var menu_normal := Hud._box(Color(1, 1, 1, 0.12), 8, 12, Color(1, 1, 1, 0.28))
 	menu_normal.content_margin_left = 28
 	menu_normal.content_margin_right = 28
@@ -137,7 +142,7 @@ func _build() -> void:
 	menu_btn.add_theme_stylebox_override("normal", menu_normal)
 	menu_btn.add_theme_stylebox_override("hover", menu_hover)
 	menu_btn.add_theme_stylebox_override("pressed", menu_hover)
-	menu_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	menu_btn.add_theme_stylebox_override("focus", Hud.focus_box())
 	menu_btn.pressed.connect(func() -> void: main_menu_requested.emit())
 
 	var buttons := HBoxContainer.new()
@@ -150,7 +155,7 @@ func _build() -> void:
 func _text(t: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", Hud.font_px(size))
 	l.add_theme_color_override("font_color", color)
 	return l
 

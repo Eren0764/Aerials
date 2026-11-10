@@ -47,6 +47,7 @@ var _size_buttons := {}
 var _cards := {}
 var _photos := {}  # plane id -> TextureRect on the card
 var _panel: PanelContainer
+var _launch_btn: Button
 var _player: AudioStreamPlayer
 var _track := 0
 var _music_on := true      # user wants music (play/pause button)
@@ -84,6 +85,7 @@ func _ready() -> void:
 func open() -> void:
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_launch_btn.grab_focus.call_deferred()  # keyboard: arrows / Tab move, Enter / Space activate
 	if _music_on and _gap_left <= 0.0:
 		if _player.stream == null:
 			_play_track(_track)
@@ -97,6 +99,7 @@ func open() -> void:
 func close() -> void:
 	visible = false
 	_player.stream_paused = true
+	get_viewport().gui_release_focus()  # else Space (fire) would press a hidden menu button
 
 
 func _process(delta: float) -> void:
@@ -153,8 +156,8 @@ func _random_name() -> void:
 func _select_plane(id: String) -> void:
 	selected_plane = id
 	for k in _cards:
-		var sb := _card_style(k == id)
-		(_cards[k] as PanelContainer).add_theme_stylebox_override("panel", sb)
+		var card := _cards[k] as PanelContainer
+		card.add_theme_stylebox_override("panel", _card_style(k == id, card.has_focus()))
 
 
 func _select_size(n: int) -> void:
@@ -266,17 +269,18 @@ func _build() -> void:
 	col.add_theme_constant_override("separation", 9)
 	box.add_child(col)
 
-	col.add_child(_centered(_text("★ PACIFIC & DESERT ARCHIPELAGO THEATER ★", 11, DIM)))
+	col.add_child(_centered(_text("★ PACIFIC & DESERT ARCHIPELAGO THEATER ★", Hud.TEXT_LABEL, DIM)))
 	col.add_child(_centered(_text("AERIALS", 30, GREEN)))
-	col.add_child(_centered(_text("SELECT CALLSIGN & AIRCRAFT TO DEPLOY INTO THE THEATER", 12, Color("cbd5e1"))))
+	col.add_child(_centered(_text("SELECT CALLSIGN & AIRCRAFT TO DEPLOY INTO THE THEATER", Hud.TEXT_LABEL, Color("cbd5e1"))))
 	col.add_child(_build_music_row())
 	col.add_child(_build_pilot_row())
 	col.add_child(_section("SELECT AIRCRAFT (SHARED BASE STATS WITH UNIQUE SPECIALIZATION)"))
 	col.add_child(_build_cards())
 
-	var launch := _button("LAUNCH SORTIE", 17, Color("062419"), Color("00ff88"), Color("34d399"))
+	var launch := _button("LAUNCH SORTIE", Hud.TEXT_VALUE, Color("062419"), Color("00ff88"), Color("34d399"))
 	launch.custom_minimum_size = Vector2(260, 46)
 	launch.pressed.connect(_launch)
+	_launch_btn = launch
 	col.add_child(_centered(launch))
 
 
@@ -294,12 +298,12 @@ func _build_music_row() -> Control:
 	var titles := VBoxContainer.new()
 	titles.add_theme_constant_override("separation", 0)
 	titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	titles.add_child(_text("MENU THEME", 10, DIM))
-	_track_label = _text("", 12, Color("e2e8f0"))
+	titles.add_child(_text("MENU THEME", Hud.TEXT_LABEL, DIM))
+	_track_label = _text("", Hud.TEXT_LABEL, Color("e2e8f0"))
 	titles.add_child(_track_label)
 	row.add_child(titles)
 
-	row.add_child(_text("VOL", 11, DIM))
+	row.add_child(_text("VOL", Hud.TEXT_LABEL, DIM))
 	_volume_slider = HSlider.new()
 	_volume_slider.min_value = 0
 	_volume_slider.max_value = 100
@@ -309,7 +313,7 @@ func _build_music_row() -> Control:
 	_volume_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_volume_slider.value_changed.connect(func(v: float) -> void: _apply_volume(int(v)))
 	row.add_child(_volume_slider)
-	_volume_label = _text("60%", 12, Color("e2e8f0"))
+	_volume_label = _text("60%", Hud.TEXT_LABEL, Color("e2e8f0"))
 	_volume_label.custom_minimum_size = Vector2(40, 0)
 	row.add_child(_volume_label)
 
@@ -331,14 +335,15 @@ func _build_pilot_row() -> Control:
 	grid.add_theme_constant_override("h_separation", 14)
 	grid.add_theme_constant_override("v_separation", 8)
 
-	grid.add_child(_text("PILOT CALLSIGN", 12, GREEN))
+	grid.add_child(_text("PILOT CALLSIGN", Hud.TEXT_LABEL, GREEN))
 	var name_row := HBoxContainer.new()
 	name_row.add_theme_constant_override("separation", 6)
 	_name_edit = LineEdit.new()
 	_name_edit.max_length = 16
 	_name_edit.placeholder_text = "ENTER CALLSIGN..."
 	_name_edit.custom_minimum_size = Vector2(200, 0)
-	_name_edit.add_theme_font_size_override("font_size", 14)
+	_name_edit.add_theme_font_size_override("font_size", Hud.TEXT_LABEL)
+	_name_edit.add_theme_stylebox_override("focus", Hud.focus_box(4))
 	_name_edit.text_changed.connect(func(t: String) -> void:
 		var caret := _name_edit.caret_column
 		var upper := t.to_upper()
@@ -348,7 +353,7 @@ func _build_pilot_row() -> Control:
 		pilot_name = upper.strip_edges() if not upper.strip_edges().is_empty() else "MAVERICK"
 		for p in _preset_buttons:
 			_style_toggle(_preset_buttons[p], p == upper.strip_edges()))
-	_name_edit.text_submitted.connect(func(_t: String) -> void: _name_edit.release_focus())
+	_name_edit.text_submitted.connect(func(_t: String) -> void: _launch_btn.grab_focus())
 	name_row.add_child(_name_edit)
 	var rnd := _small_button("RANDOM")
 	rnd.pressed.connect(_random_name)
@@ -361,8 +366,8 @@ func _build_pilot_row() -> Control:
 	grid.add_child(name_row)
 
 	var size_label := HBoxContainer.new()
-	size_label.add_child(_text("TEAM SIZE ", 12, GREEN))
-	size_label.add_child(_text("planes per enemy team", 10, DIM))
+	size_label.add_child(_text("TEAM SIZE ", Hud.TEXT_LABEL, GREEN))
+	size_label.add_child(_text("planes per enemy team", Hud.TEXT_LABEL, DIM))
 	grid.add_child(size_label)
 	var sizes := HBoxContainer.new()
 	sizes.add_theme_constant_override("separation", 6)
@@ -389,9 +394,15 @@ func _build_cards() -> Control:
 		card.custom_minimum_size = Vector2(285, 0)
 		card.mouse_filter = Control.MOUSE_FILTER_STOP
 		card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		card.focus_mode = Control.FOCUS_ALL
 		card.gui_input.connect(func(ev: InputEvent) -> void:
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-				_select_plane(id))
+				_select_plane(id)
+			elif ev.is_action_pressed("ui_accept"):
+				_select_plane(id)
+				card.accept_event())
+		card.focus_entered.connect(func() -> void: _select_plane(selected_plane))  # restyle focus ring
+		card.focus_exited.connect(func() -> void: _select_plane(selected_plane))
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 3)
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -411,12 +422,12 @@ func _build_cards() -> Control:
 		photo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		photo_wrap.add_child(photo)
 		_photos[id] = photo
-		var badge := _text(info.badge, 10, Color.WHITE)
+		var badge := _text(info.badge, Hud.TEXT_LABEL, Color.WHITE)
 		badge.add_theme_stylebox_override("normal", Hud._box(Color(info.color, 0.55), 4, 3, info.color))
 		badge.position = Vector2(7, 7)
 		photo_wrap.add_child(badge)
-		v.add_child(_text(info.title, 15, Color.WHITE))
-		v.add_child(_text(info.sub, 10, DIM))
+		v.add_child(_text(info.title, Hud.TEXT_VALUE, Color.WHITE))
+		v.add_child(_text(info.sub, Hud.TEXT_LABEL, DIM))
 
 		# Specs: highlighted when off the base tier, ★ on the top tier (renderAircraftCardSpecs)
 		var turn_pct := roundi((def.arcade_pitch_rate / base_pitch - 1.0) * 100.0)
@@ -428,22 +439,22 @@ func _build_cards() -> Control:
 				["DMG", "%d" % def.damage_per_shot, def.stats.damage], ["HP", "%d" % def.max_hp, def.stats.health]]:
 			var tier: int = spec[2]
 			var star := " ★" if tier == 4 else ""
-			specs.add_child(_text("%s: %s%s" % [spec[0], spec[1], star], 11,
+			specs.add_child(_text("%s: %s%s" % [spec[0], spec[1], star], Hud.TEXT_LABEL,
 					Color("e2e8f0") if tier == 2 else (GREEN if tier > 2 else Color("fca5a5"))))
 		if def.bomb_rack.size() > 2:
-			specs.add_child(_text("BOMBS: %d ★" % def.bomb_rack.size(), 11, GREEN))
+			specs.add_child(_text("BOMBS: %d ★" % def.bomb_rack.size(), Hud.TEXT_LABEL, GREEN))
 		if def.has("dorsal_gunner"):
-			specs.add_child(_text("DORSAL GUNNER", 11, GREEN))
+			specs.add_child(_text("DORSAL GUNNER", Hud.TEXT_LABEL, GREEN))
 		v.add_child(specs)
 		_cards[id] = card
 		grid.add_child(card)
 	return grid
 
 
-func _card_style(active: bool) -> StyleBoxFlat:
+func _card_style(active: bool, focused := false) -> StyleBoxFlat:
 	var sb := Hud._box(Color(0, 1, 0.53, 0.10) if active else Color(1, 1, 1, 0.04), 10, 10,
-			GREEN if active else Color(1, 1, 1, 0.15))
-	sb.set_border_width_all(2 if active else 1)
+			Color("fffaed") if focused else (GREEN if active else Color(1, 1, 1, 0.15)))
+	sb.set_border_width_all(3 if focused else (2 if active else 1))
 	return sb
 
 
@@ -452,14 +463,14 @@ func _card_style(active: bool) -> StyleBoxFlat:
 func _text(t: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", Hud.font_px(size))
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
 
 func _section(t: String) -> Label:
-	return _text(t, 11, GREEN)
+	return _text(t, Hud.TEXT_LABEL, GREEN)
 
 
 func _centered(c: Control) -> CenterContainer:
@@ -471,7 +482,7 @@ func _centered(c: Control) -> CenterContainer:
 func _button(t: String, size: int, fg: Color, bg: Color, hover_bg: Color) -> Button:
 	var b := Button.new()
 	b.text = t
-	b.add_theme_font_size_override("font_size", size)
+	b.add_theme_font_size_override("font_size", Hud.font_px(size))
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(state, fg)
 	var normal := Hud._box(bg, 8, 8)
@@ -479,12 +490,12 @@ func _button(t: String, size: int, fg: Color, bg: Color, hover_bg: Color) -> But
 	b.add_theme_stylebox_override("normal", normal)
 	b.add_theme_stylebox_override("hover", hover)
 	b.add_theme_stylebox_override("pressed", hover)
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_stylebox_override("focus", Hud.focus_box(8))
 	return b
 
 
 func _small_button(t: String) -> Button:
-	var b := _button(t, 12, Color("e2e8f0"), Color(1, 1, 1, 0.08), Color(1, 1, 1, 0.18))
+	var b := _button(t, Hud.TEXT_LABEL, Color("e2e8f0"), Color(1, 1, 1, 0.08), Color(1, 1, 1, 0.18))
 	_style_toggle(b, false)
 	return b
 

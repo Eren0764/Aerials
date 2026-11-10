@@ -15,14 +15,25 @@ const AMBER := Color("f59e0b")
 const RED := Color("ef4444")
 const SKY := Color("38bdf8")
 const TEXT := Color("eef3f8")
-const ENEMY_TEXT := Color("fca5a5")
+const ENEMY_TEXT := Color("ff9e80")  # art bible §4: light salmon, separate from danger red / amber / gold
 const LEAD_YELLOW := Color("facc15")
 const ALLY := Color("38bdf8")
 const BANNER_TIME := 1.6
 const HIT_MARKER_TIME := 0.13
-const MM_W := 148.0
-const MM_H := 103.0
-const MM_SCALE := 1.0 / (30.0 * World.MAP_SCALE)  # 1 minimap pixel = 120 m
+## Art bible §7 text roles. Sizes are base-canvas px: the project's canvas_items stretch scales the
+## whole canvas with the window height, so these grow with resolution without a runtime factor
+## (a viewport-height multiplier on top would double-scale). At 1920x1080, 1 canvas px = 1.67 screen px.
+const TEXT_LABEL := 16
+const TEXT_VALUE := 18
+const TEXT_WARNING := 20
+const LINE_W := 2.0  # art bible §7: drawn HUD lines >= 2 px over a dark outline
+const OUTLINE := Color(0.02, 0.04, 0.07, 0.7)
+const PULSE_HZ := 1.5  # danger pulse: smooth opacity wave, <= 2 cycles/s, never a hard flash
+# shortcut: text tag stands in for an insignia glyph, upgrade when glyph art exists
+const NATION := {"mustang": "US", "zero": "JP", "bf109": "DE", "il2": "SU", "spitfire": "GB", "sm79": "IT"}
+const MM_W := 222.0  # 1.5x the JS 148x103 so 16 px airfield codes stay legible (art bible §7 text floor)
+const MM_H := 155.0
+const MM_SCALE := 1.5 / (30.0 * World.MAP_SCALE)  # 1 minimap pixel = 80 m
 
 var player: PlayerAircraft
 var camera: FlightCamera
@@ -46,7 +57,7 @@ var _hit_timer := 0.0
 var _hit_kill := false
 var _flak_warning: PanelContainer
 var _flak_vignette: TextureRect
-var _flak_age := 0.0
+var _pulse_t := 0.0
 
 
 func _ready() -> void:
@@ -89,6 +100,7 @@ func _process(delta: float) -> void:
 	_banner_timer -= delta
 	_banner.visible = _banner_timer > 0.0
 	_hit_timer -= delta
+	_pulse_t += delta
 	_update_telemetry()
 	_update_warning()
 	_overlay.queue_redraw()
@@ -109,14 +121,14 @@ func _build_telemetry() -> void:
 	panel.add_child(col)
 
 	for row in [["thr", "THR"], ["ias", "IAS"], ["alt", "ALT"], ["mg", "MG"], ["gear", "GEAR"]]:
-		_add_row(col, row[0], row[1], 17)
+		_add_row(col, row[0], row[1], TEXT_VALUE)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 6)
 	col.add_child(gap)
 	for row in [["hp", "ARMOR"], ["lives", "LIVES"], ["flaps", "FLAPS"], ["bombs", "BOMBS"], ["wing", "WING #2"], ["targets", "ENEMIES"], ["bases", "BASES"]]:
-		_add_row(col, row[0], row[1], 13)
+		_add_row(col, row[0], row[1], TEXT_LABEL)
 
-	_instructor = _label("INSTRUCTOR", 11, AMBER)
+	_instructor = _label("INSTRUCTOR", TEXT_LABEL, AMBER)
 	_instructor.add_theme_stylebox_override("normal", _box(Color(0.96, 0.62, 0.04, 0.15), 4, 3, AMBER))
 	_instructor.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(_instructor)
@@ -130,7 +142,7 @@ func _add_row(parent: Container, key: String, caption: String, size: int) -> voi
 	v.custom_minimum_size = Vector2(150, 0)
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(v)
-	var c := _label(caption, size, TEXT if size >= 17 else Color(TEXT, 0.7))
+	var c := _label(caption, size, TEXT if size >= TEXT_VALUE else Color(TEXT, 0.7))
 	c.custom_minimum_size = Vector2(60, 0)
 	row.add_child(c)
 	_val[key] = v
@@ -247,21 +259,21 @@ func _build_compass() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	panel.add_child(row)
-	row.add_child(_label("HDG", 13, Color(TEXT, 0.7)))
-	_heading = _label("000°", 18, Color.WHITE)
+	row.add_child(_label("HDG", TEXT_LABEL, Color(TEXT, 0.7)))
+	_heading = _label("000°", TEXT_VALUE, Color.WHITE)
 	row.add_child(_heading)
-	_cardinal = _label("N", 14, GREEN)
+	_cardinal = _label("N", TEXT_LABEL, GREEN)
 	row.add_child(_cardinal)
 
 
 func _build_banners() -> void:
 	_warning = PanelContainer.new()
 	_warning.add_theme_stylebox_override("panel", _box(Color(220 / 255.0, 38 / 255.0, 38 / 255.0, 0.85), 6, 10))
-	_warning_label = _label("", 20, Color.WHITE)
+	_warning_label = _label("", TEXT_WARNING, Color.WHITE)
 	_warning.add_child(_warning_label)
 	add_child(_centered_at(_warning, 0.15))
 
-	_banner = _label("", 18, Color.WHITE)
+	_banner = _label("", TEXT_VALUE, Color.WHITE)
 	_banner.add_theme_constant_override("outline_size", 6)
 	_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
 	_banner.visible = false
@@ -292,7 +304,7 @@ func _build_flak_danger() -> void:
 
 	_flak_warning = PanelContainer.new()
 	_flak_warning.add_theme_stylebox_override("panel", _box(Color(127 / 255.0, 29 / 255.0, 29 / 255.0, 0.78), 6, 6, Color("ff2a2a")))
-	_flak_warning.add_child(_label("⚠ IN FLAK BLAST ZONE — BREAK!", 15, Color.WHITE))
+	_flak_warning.add_child(_label("⚠ IN FLAK BLAST ZONE — BREAK!", TEXT_WARNING, Color.WHITE))
 	_flak_warning.visible = false
 	add_child(_centered_at(_flak_warning, 0.58))
 
@@ -302,10 +314,14 @@ func set_flak_danger(time_left: float) -> void:
 	var inside := time_left != INF
 	_flak_warning.visible = inside
 	if inside:
-		_flak_age += get_process_delta_time()
-		_flak_warning.modulate.a = 0.75 + 0.25 * signf(sin(_flak_age * TAU * 2.0))  # 0.25 s blink
+		_flak_warning.modulate.a = _pulse()
 	var urgency := 1.0 - clampf(time_left / Defenses.FLAK_WARNING_TIME, 0.0, 1.0) if inside else 0.0
 	_flak_vignette.modulate.a = 0.35 + 0.65 * urgency if inside else 0.0
+
+
+## Danger pulse alpha: 0.5..1.0 cosine wave at PULSE_HZ (art bible §4 colourblind backup cue)
+func _pulse() -> float:
+	return 0.75 + 0.25 * cos(_pulse_t * TAU * PULSE_HZ)
 
 
 # Wraps a control in a full-width row whose vertical position is a fraction of the screen height
@@ -338,6 +354,7 @@ func _update_warning() -> void:
 	elif p.stall_warning:
 		text = "STALL WARNING!"
 	_warning.visible = not text.is_empty()
+	_warning.modulate.a = _pulse()
 	_warning_label.text = "⚠  %s  ⚠" % text
 
 
@@ -372,23 +389,25 @@ func _draw_overlay() -> void:
 
 	# Dashed link between gunsight and aim point
 	if aim_s != null and nose_s != null:
-		o.draw_dashed_line(nose_s, aim_s, Color(1, 1, 1, 0.4), 1.5, 3.0)
+		o.draw_dashed_line(nose_s, aim_s, OUTLINE, LINE_W + 2.0, 4.0)
+		o.draw_dashed_line(nose_s, aim_s, Color(1, 1, 1, 0.5), LINE_W, 4.0)
 
 	# Mouse-aim ring
 	if aim_s != null:
-		o.draw_arc(aim_s, 20.0, 0.0, TAU, 40, Color(1, 1, 1, 0.85), 1.8, true)
+		_arc(aim_s, 20.0, 0.0, TAU, Color(1, 1, 1, 0.85))
+		o.draw_circle(aim_s, 3.0, OUTLINE)
 		o.draw_circle(aim_s, 2.0, Color.WHITE)
 
 	# Gunsight: centre ring, wings, pips, barrel-heat arc
 	if nose_s != null:
 		var c: Vector2 = nose_s
-		o.draw_arc(c, 4.0, 0.0, TAU, 16, GREEN, 1.5, true)
-		o.draw_line(c + Vector2(-20, 0), c + Vector2(-8, 0), GREEN, 2.0)
-		o.draw_line(c + Vector2(8, 0), c + Vector2(20, 0), GREEN, 2.0)
-		o.draw_line(c + Vector2(0, -18), c + Vector2(0, -12), GREEN, 2.0)
-		o.draw_line(c + Vector2(0, 12), c + Vector2(0, 18), GREEN, 2.0)
+		_arc(c, 4.0, 0.0, TAU, GREEN)
+		_line(c + Vector2(-20, 0), c + Vector2(-8, 0), GREEN)
+		_line(c + Vector2(8, 0), c + Vector2(20, 0), GREEN)
+		_line(c + Vector2(0, -18), c + Vector2(0, -12), GREEN)
+		_line(c + Vector2(0, 12), c + Vector2(0, 18), GREEN)
 		var heat := clampf(player.guns.heat, 0.0, 1.0)
-		o.draw_arc(c, 18.0, 0.0, TAU, 48, Color(1, 1, 1, 0.12), 2.5, true)
+		_arc(c, 18.0, 0.0, TAU, Color(1, 1, 1, 0.12), 2.5)  # track; its outline also backs the heat arc
 		if heat > 0.0:
 			var heat_col := RED if player.guns.is_jammed or heat > 0.8 else (AMBER if heat > 0.5 else OK_GREEN)
 			o.draw_arc(c, 18.0, -PI / 2.0, -PI / 2.0 + TAU * heat, 48, heat_col, 2.5, true)
@@ -396,7 +415,7 @@ func _draw_overlay() -> void:
 		if _hit_timer > 0.0:
 			var col := RED if _hit_kill else Color.WHITE
 			for d in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-				o.draw_line(c + d * 9.0, c + d * 15.0, col, 2.5, true)
+				_line(c + d * 9.0, c + d * 15.0, col, 2.5)
 
 	_draw_ally_markers()
 	_draw_enemy_markers(fwd)
@@ -413,13 +432,13 @@ func _draw_ally_markers() -> void:
 		if s == null or dist >= 8000.0:
 			continue
 		var p: Vector2 = s
-		o.draw_rect(Rect2(p - Vector2(12, 12), Vector2(24, 24)), Color(ALLY, 0.85), false, 1.5)
+		_rect(Rect2(p - Vector2(12, 12), Vector2(24, 24)), Color(ALLY, 0.85))
 		var range_txt := "%.2fkm" % (dist / 1000.0) if dist >= 1000.0 else "%dm" % roundi(dist)
 		var hearts := "♥".repeat(maxi(0, fw.lives)) + "♡".repeat(maxi(0, fw.max_lives - fw.lives))
 		var label := "%s %s %s %s" % [fw.callsign, fw.def.short_name, hearts, range_txt]
-		var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-		o.draw_string_outline(_font, p + Vector2(-w / 2.0, -28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 2, Color(0, 0, 0, 0.6))
-		o.draw_string(_font, p + Vector2(-w / 2.0, -28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("bae6fd"))
+		var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL).x
+		o.draw_string_outline(_font, p + Vector2(-w / 2.0, -28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, 4, OUTLINE)
+		o.draw_string(_font, p + Vector2(-w / 2.0, -28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, Color("bae6fd"))
 		var bar := Rect2(p + Vector2(-24, -22), Vector2(48, 4))
 		o.draw_rect(bar, Color(0, 0, 0, 0.65))
 		o.draw_rect(Rect2(bar.position, Vector2(48.0 * clampf(fw.hp / fw.max_hp, 0.0, 1.0), 4)), ALLY)
@@ -437,13 +456,20 @@ func _draw_enemy_markers(fwd: Vector3) -> void:
 		var s = _to_screen(ep.position)
 		if s != null and dist < 9000.0:
 			var p: Vector2 = s
-			o.draw_rect(Rect2(p - Vector2(12, 12), Vector2(24, 24)), Color(RED, 0.85), false, 1.5)
+			_rect(Rect2(p - Vector2(12, 12), Vector2(24, 24)), Color(RED, 0.85))
 			var range_txt := "%.2fkm" % (dist / 1000.0) if dist >= 1000.0 else "%dm" % roundi(dist)
 			var hearts := "♥".repeat(maxi(0, ep.lives)) + "♡".repeat(maxi(0, ep.max_lives - ep.lives))
 			var label := "%s [%s] %s %s" % [ep.callsign, _state_tag(ep), hearts, range_txt]
-			var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-			o.draw_string_outline(_font, p + Vector2(-w / 2.0, -28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 2, Color(0, 0, 0, 0.6))
-			o.draw_string(_font, p + Vector2(-w / 2.0, -28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, ENEMY_TEXT)
+			# Insignia chip (salmon tag, dark letters) left of the label: enemy labels always carry a glyph
+			var tag: String = NATION.get(ep.plane_id, "??")
+			var tag_w := _font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL).x + 6.0
+			var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL).x
+			var x0 := p.x - (tag_w + 4.0 + w) / 2.0
+			o.draw_rect(Rect2(x0, p.y - 28.0 - TEXT_LABEL + 1.0, tag_w, TEXT_LABEL + 3.0), ENEMY_TEXT)
+			o.draw_string(_font, Vector2(x0 + 3.0, p.y - 28.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, Color("1a0f0a"))
+			var lp := Vector2(x0 + tag_w + 4.0, p.y - 28.0)
+			o.draw_string_outline(_font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, 4, OUTLINE)
+			o.draw_string(_font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, ENEMY_TEXT)
 			var bar := Rect2(p + Vector2(-24, -22), Vector2(48, 4))
 			o.draw_rect(bar, Color(0, 0, 0, 0.65))
 			o.draw_rect(Rect2(bar.position, Vector2(48.0 * clampf(ep.hp / ep.max_hp, 0.0, 1.0), 4)), RED)
@@ -459,8 +485,26 @@ func _draw_enemy_markers(fwd: Vector3) -> void:
 			if ls != null:
 				for k in 8:  # dashed ring
 					var a0 := k * TAU / 8.0
-					o.draw_arc(ls, 9.0, a0, a0 + TAU / 16.0, 4, Color(LEAD_YELLOW, 0.9), 1.5, true)
+					_arc(ls, 9.0, a0, a0 + TAU / 16.0, Color(LEAD_YELLOW, 0.9))
+				o.draw_circle(ls, 2.5, OUTLINE)
 				o.draw_circle(ls, 1.5, LEAD_YELLOW)
+
+
+# Outlined overlay strokes (art bible §7 line weight)
+func _line(a: Vector2, b: Vector2, col: Color, w := LINE_W) -> void:
+	_overlay.draw_line(a, b, OUTLINE, w + 2.0, true)
+	_overlay.draw_line(a, b, col, w, true)
+
+
+func _arc(c: Vector2, r: float, a0: float, a1: float, col: Color, w := LINE_W) -> void:
+	var segs := maxi(4, int(48.0 * absf(a1 - a0) / TAU))
+	_overlay.draw_arc(c, r, a0, a1, segs, OUTLINE, w + 2.0, true)
+	_overlay.draw_arc(c, r, a0, a1, segs, col, w, true)
+
+
+func _rect(r: Rect2, col: Color) -> void:
+	_overlay.draw_rect(r, OUTLINE, false, LINE_W + 2.0)
+	_overlay.draw_rect(r, col, false, LINE_W)
 
 
 func _state_tag(ep: EnemyPlane) -> String:
@@ -486,7 +530,7 @@ func _build_minimap() -> void:
 	card.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	card.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	card.offset_right = -30.0
-	card.offset_left = -30.0 - 168.0
+	card.offset_left = -30.0 - (MM_W + 20.0)
 	card.offset_top = 20.0
 	add_child(card)
 	var col := VBoxContainer.new()
@@ -497,7 +541,7 @@ func _build_minimap() -> void:
 	_minimap.clip_contents = true
 	_minimap.draw.connect(_draw_minimap)
 	col.add_child(_minimap)
-	var title := _label("TACTICAL MAP", 10, GREEN)
+	var title := _label("TACTICAL MAP", TEXT_LABEL, GREEN)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(title)
 
@@ -538,8 +582,8 @@ func _draw_minimap() -> void:
 
 	# Range rings and frame
 	var mid := Vector2(MM_W / 2.0, MM_H / 2.0)
-	m.draw_arc(mid, 28.0, 0.0, TAU, 48, Color(0, 1, 0.53, 0.16), 1.0)
-	m.draw_arc(mid, 54.0, 0.0, TAU, 64, Color(0, 1, 0.53, 0.16), 1.0)
+	m.draw_arc(mid, 42.0, 0.0, TAU, 48, Color(0, 1, 0.53, 0.16), 1.0)
+	m.draw_arc(mid, 81.0, 0.0, TAU, 64, Color(0, 1, 0.53, 0.16), 1.0)
 	m.draw_rect(Rect2(0.5, 0.5, MM_W - 1.0, MM_H - 1.0), Color(0, 0.94, 1, 0.55), false, 1.5)
 
 	# Harbor piers
@@ -580,11 +624,11 @@ func _draw_minimap() -> void:
 		var code: String = af.code + (" [X]" if destroyed else "")
 		if destroyed:
 			label_col = Color("f87171")
-		var tw := _font.get_string_size(code, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var tw := _font.get_string_size(code, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL).x
 		var lx := clampf(c.x + rw_w / 2.0 + 3.0, 2.0, MM_W - tw - 2.0)
-		var ly := clampf(c.y + 3.0, 8.0, MM_H - 3.0)
-		m.draw_string_outline(_font, Vector2(lx, ly), code, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, 3, Color(0.01, 0.02, 0.09, 0.9))
-		m.draw_string(_font, Vector2(lx, ly), code, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, label_col)
+		var ly := clampf(c.y + 5.0, TEXT_LABEL, MM_H - 3.0)
+		m.draw_string_outline(_font, Vector2(lx, ly), code, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, 3, Color(0.01, 0.02, 0.09, 0.9))
+		m.draw_string(_font, Vector2(lx, ly), code, HORIZONTAL_ALIGNMENT_LEFT, -1, TEXT_LABEL, label_col)
 
 	# Aircraft arrows: enemies red, player green on top
 	for ep in enemies.planes:
@@ -612,13 +656,30 @@ func _mm_arrow(pos: Vector2, fwd: Vector3, size: float, color: Color) -> void:
 # Small builders
 # =====================================================================================
 
+## Font size for any HUD / menu / pause / result text: never below the TEXT_LABEL floor (art bible §7).
+## Shared by MainMenu, PauseMenu and ResultScreen so the floor lives in one place.
+static func font_px(size: int) -> int:
+	return maxi(size, TEXT_LABEL)
+
+
 func _label(text: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", font_px(size))
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
+
+
+## Keyboard-focus ring for menu buttons: 2 px sunlight (#fffaed) outline just outside the button
+static func focus_box(radius := 10) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.draw_center = false
+	sb.border_color = Color("fffaed")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(radius)
+	sb.set_expand_margin_all(3)
+	return sb
 
 
 static func _box(bg: Color, radius: int, pad: int, border := Color.TRANSPARENT) -> StyleBoxFlat:
