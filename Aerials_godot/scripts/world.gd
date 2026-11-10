@@ -85,21 +85,22 @@ var sea_mat: ShaderMaterial
 var sun: DirectionalLight3D
 var env: Environment
 var sky_mat: ProceduralSkyMaterial
+var clouds: Clouds
 
 ## Mission lighting presets (art bible §2). One is rolled per sortie; the menu always uses "afternoon".
 const LIGHTING_PRESETS := ["dawn", "noon", "afternoon", "sunset", "partly_cloudy"]
 ## elev = sun elevation in degrees; fog density kept low so aircraft at 1.5 km stay readable.
 const LIGHTING_PRESET_DATA := {
 	"dawn": {"elev": 12.0, "sun": "ffc89a", "energy": 0.8, "top": "2a4f8a", "horizon": "f2c6a0",
-		"fog": "c9d3e0", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.3, "sat": 1.0, "amb_col": "e8c8b0", "amb_sky": 0.6, "sea_glint": 0.5, "sea_tint": "ffb59a", "sea_patch": 0.0, "sea_wave_speed": 0.8},
+		"fog": "c9d3e0", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.3, "sat": 1.0, "amb_col": "e8c8b0", "amb_sky": 0.6, "sea_glint": 0.5, "sea_tint": "ffb59a", "sea_patch": 0.0, "sea_wave_speed": 0.8, "cloud": 0.25},
 	"noon": {"elev": 70.0, "sun": "fffaed", "energy": 1.3, "top": "19559c", "horizon": "99c4eb",
-		"fog": "a0d8ef", "fog_density": 0.00002, "ambient": 0.75, "glow": 0.2, "sat": 1.0, "sea_glint": 0.6, "sea_tint": "ffffff", "sea_patch": 0.0, "sea_wave_speed": 1.0},
+		"fog": "a0d8ef", "fog_density": 0.00002, "ambient": 0.75, "glow": 0.2, "sat": 1.0, "sea_glint": 0.6, "sea_tint": "ffffff", "sea_patch": 0.0, "sea_wave_speed": 1.0, "cloud": 0.2},
 	"afternoon": {"elev": 25.0, "sun": "ffe4bf", "energy": 1.15, "top": "1d5fa6", "horizon": "a8cbe8",
-		"fog": "b4d6e8", "fog_density": 0.00002, "ambient": 0.7, "glow": 0.3, "sat": 1.0, "sea_glint": 0.5, "sea_tint": "ffd9a0", "sea_patch": 0.0, "sea_wave_speed": 1.0},
+		"fog": "b4d6e8", "fog_density": 0.00002, "ambient": 0.7, "glow": 0.3, "sat": 1.0, "sea_glint": 0.5, "sea_tint": "ffd9a0", "sea_patch": 0.0, "sea_wave_speed": 1.0, "cloud": 0.3},
 	"sunset": {"elev": 8.0, "sun": "ff9a4d", "energy": 0.8, "top": "2b3f73", "horizon": "ffb27a",
-		"fog": "e0a988", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.25, "sat": 0.85, "amb_col": "d9a888", "amb_sky": 0.6, "sea_glint": 0.65, "sea_tint": "ff8a3a", "sea_patch": 0.0, "sea_wave_speed": 0.9},
+		"fog": "e0a988", "fog_density": 0.000035, "ambient": 1.1, "glow": 0.25, "sat": 0.85, "amb_col": "d9a888", "amb_sky": 0.6, "sea_glint": 0.65, "sea_tint": "ff8a3a", "sea_patch": 0.0, "sea_wave_speed": 0.9, "cloud": 0.35},
 	"partly_cloudy": {"elev": 50.0, "sun": "fff6e5", "energy": 1.0, "top": "2a63a0", "horizon": "b9cfdf",
-		"fog": "bcccd8", "fog_density": 0.00003, "ambient": 0.8, "glow": 0.25, "sat": 0.95, "sea_glint": 0.35, "sea_tint": "fff0d8", "sea_patch": 0.9, "sea_wave_speed": 1.1},
+		"fog": "bcccd8", "fog_density": 0.00003, "ambient": 0.8, "glow": 0.25, "sat": 0.95, "sea_glint": 0.35, "sea_tint": "fff0d8", "sea_patch": 0.9, "sea_wave_speed": 1.1, "cloud": 0.75},
 }
 const SUN_AZIMUTH_DEG := 40.0  # 0 = +Z; keeps low suns off the axis of the menu camera
 const SEA_COLOR := Color("165b7e")
@@ -127,6 +128,8 @@ func _ready() -> void:
 	var desert := DesertEnvironment.new()
 	desert.name = "DesertEnvironment"
 	add_child(desert)
+	clouds = Clouds.new()
+	add_child(clouds)
 	_build_persistent_systems()
 	open_main_menu()
 
@@ -275,6 +278,10 @@ func apply_lighting_preset(preset: String, warm_grade := false) -> void:
 		sea_mat.set_shader_parameter("glint_tint", Color(d.sea_tint))
 		sea_mat.set_shader_parameter("patchiness", d.sea_patch)
 		sea_mat.set_shader_parameter("wave_speed", d.sea_wave_speed)
+	if clouds:
+		# unlit side = sky-tinted ambient; lit side = sun colour scaled by energy
+		clouds.apply_preset(d.cloud, sun_col * minf(d.energy, 1.1), sun.global_transform.basis.z,
+			Color(d.horizon).lerp(Color(d.top), 0.2) * 1.0)
 	env.adjustment_enabled = warm_grade or d.sat != 1.0
 	env.adjustment_saturation = d.sat * (1.08 if warm_grade else 1.0)
 

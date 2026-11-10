@@ -77,4 +77,5 @@ func _build_shots() -> void:
 		["rocky", Vector3(se.x, 10, se.z) + Vector3(-900, 450, -900), Vector3(se.x, 60, se.z)],
 		["horizon", a + Vector3(0, 900, 0), a + Vector3(6000, 300, 0)],
 		["sea_low", d + Vector3(900, 30, -200), d + Vector3(-200, 0, 300)],
+		["clouds", a + Vector3(0, 1500, 0), a + Vector3(5000, 1100, 1500)],
 	]
